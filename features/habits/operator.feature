@@ -1,4 +1,3 @@
-@wip
 Feature: Operator CLI for habits
   The operator lists, approves, rejects, retires, and wipes habits.
   The crew cannot do any of that. Only active habits reach the model.

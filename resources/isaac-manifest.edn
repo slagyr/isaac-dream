@@ -3,4 +3,15 @@
  :builtin?    true
  :factory     isaac.dream.module/create-module
  :description "Dreaming for Isaac — a crew distills conversations into private habits."
- :handbook    "isaac/dream/handbook.md"}
+ :handbook    "isaac/dream/handbook.md"
+ :isaac.agent/tools {:dream/propose {:factory isaac.dream.tools/propose-tool-factory}}
+ :isaac.agent/system-sections {:habits {:factory isaac.dream.habits/section :order 900}}
+ :isaac/cli {:dream {:usage "dream <subcommand> [options]"
+                      :summary "Manage crew habits"
+                      :namespace isaac.dream.cli :hosted true}}
+ :isaac.config/schema
+ {:dream {:schema {:name :dream :type :map :description "Per-crew dream approval policies"
+                   :value-spec {:type :map :schema
+                                {:approval {:type :keyword :description "Habit promotion policy (manual or auto)"
+                                            :validations [[:one-of? :manual :auto]]}}}}}}
+}

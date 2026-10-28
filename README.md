@@ -24,7 +24,10 @@ Depends on [isaac-foundation](https://github.com/slagyr/isaac-foundation) and
 
 ## What's here
 
-- Module `isaac.dream` (`isaac.dream.module/create-module`).
+- Module `isaac.dream` (`isaac.dream.module/create-module`): crew-scoped EDN
+  habits, the grant-gated `dream__propose` tool, manual/auto approval, and
+  an active-only system section at order 900.
+- Operator CLI: `isaac dream list|approve|reject|retire|wipe --crew <id>`.
 - [Dream handbook](resources/isaac/dream/handbook.md).
 
 ## Development

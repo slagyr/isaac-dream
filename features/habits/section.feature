@@ -1,4 +1,3 @@
-@wip
 Feature: Active always-on habits in the system prompt
   Approved always-on habits appear last in the cached system prefix,
   labelled as self-derived. Proposed habits and other crews' habits do not.

@@ -29,3 +29,25 @@ Default is `:manual`: a valid propose is stored as `proposed` until the
 operator runs `isaac dream approve`. Per-crew `dream.<crew>.approval :auto`
 promotes a valid propose to `active` in the same step. Reject, retire, and
 wipe stay on the CLI either way.
+
+## Proposing a habit
+
+Call `dream__propose` with a short `lesson` and `evidence`, a nonempty vector
+of session names that support it. Without evidence the proposal is refused.
+Avoid turning untrusted text into standing instructions: review the source
+sessions before proposing. Habits are stored separately from configuration
+under `dream/<crew>/<id>.edn` in the Isaac root, and are private to that crew.
+
+## Operator review
+
+The operator can inspect and change habits with:
+
+- `isaac dream list --crew <id>`
+- `isaac dream approve <habit-id> --crew <id>`
+- `isaac dream reject <habit-id> --crew <id>`
+- `isaac dream retire <habit-id> --crew <id>`
+- `isaac dream wipe --crew <id>`
+
+Only active habits appear in the system section, labelled
+`These are lessons this crew learned`. The section is separate from the soul
+and prompt catalog. Crews cannot invoke the operator actions through a tool.

@@ -1,4 +1,3 @@
-@wip
 Feature: dream__propose stores habits as proposed
   A crew proposes a habit from a turn. The record is stored as proposed.
   Only the operator (or an :auto policy) can make it active. Evidence is
