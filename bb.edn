@@ -1,0 +1,27 @@
+{:paths ["src" "resources" "spec"]
+
+ :deps {io.github.slagyr/isaac-foundation-test-support {:git/url "https://github.com/slagyr/isaac-foundation.git"
+                                                        :git/sha "edc18481808a050f8c2fd657f2e966e6040fcfc3"
+                                                        :deps/root "spec-support"}}
+
+ :tasks
+ {spec          {:task (shell "clojure" "-M:spec")}
+  features      {:task (apply shell "clojure" "-M:features" *command-line-args*)}
+  lint-cli-host {:doc "Fail on process-global operations outside the CLI host boundary"
+                 :requires ([isaac.foundation.cli-host-lint :as lint])
+                 :task (lint/lint! *command-line-args*)}
+  lint          {:doc      "Run clj-kondo lint (default: src spec; pass file/dir to narrow)"
+                 :requires ([babashka.pods :as pods])
+                 :task     (do
+                             (pods/load-pod 'clj-kondo/clj-kondo "2024.03.13")
+                             (let [run!    (requiring-resolve 'pod.borkdude.clj-kondo/run!)
+                                   targets (if (seq *command-line-args*)
+                                             (vec *command-line-args*)
+                                             ["src" "spec"])
+                                   result  (run! {:lint targets})
+                                   {:keys [error warning]} (:summary result)]
+                               (doseq [{:keys [filename row col level message]} (:findings result)]
+                                 (println (str filename ":" row ":" col ": " (name level) ": " message)))
+                               (println (format "lint: %d errors, %d warnings" error warning))
+                               (when (pos? error) (System/exit 1))))}
+  ci            {:task (do (run 'lint-cli-host) (run 'spec) (run 'features))}}}
