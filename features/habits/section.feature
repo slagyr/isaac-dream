@@ -16,7 +16,16 @@ Feature: Active always-on habits in the system prompt
       | greenhouse | hieronymus |
 
   Scenario: an active always-on habit appears last in the system prompt, labelled self-derived
-    Given the isaac EDN file "dream/hieronymus/moonflowers.edn" exists with:
+    Given the isaac EDN file "config/models/claude.edn" exists with:
+      | path           | value            |
+      | model          | claude           |
+      | provider       | grover:anthropic |
+      | context-window | 200000           |
+    And the isaac EDN file "config/crew/hieronymus.edn" exists with:
+      | path  | value                                    |
+      | model | claude                                   |
+      | soul  | You are Hieronymus, the ship's botanist. |
+    And the isaac EDN file "dream/hieronymus/moonflowers.edn" exists with:
       | path     | value                        |
       | state    | active                       |
       | lesson   | Water the moonflowers first. |
