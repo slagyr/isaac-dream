@@ -1,6 +1,7 @@
 (ns isaac.dream.habit-steps
   (:require
     [gherclj.core :as g :refer [defthen helper!]]
+    [isaac.agent.session.session-steps :as session-steps]
     [isaac.dream.habits :as habits]
     [isaac.foundation.fs :as fs]
     [isaac.foundation.nexus :as nexus]
@@ -9,6 +10,7 @@
 (helper! isaac.dream.habit-steps)
 
 (defn crew-has-habit [crew table]
+  (session-steps/await-turn!)
   (let [fs*     (or (g/get :mem-fs) (nexus/get :fs) (fs/real-fs))
         results (map #(match/match-object table %)
                      (habits/list-habits fs* (g/get :root) crew))]
