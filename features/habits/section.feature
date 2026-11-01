@@ -25,21 +25,21 @@ Feature: Active always-on habits in the system prompt
       | model | claude                                   |
       | soul  | You are Hieronymus, the ship's botanist. |
     And the isaac EDN file "dream/hieronymus/moonflowers.edn" exists with:
-      | path     | value                        |
-      | state    | active                       |
-      | lesson   | Water the moonflowers first. |
-      | evidence | ["greenhouse"]               |
+      | path     | value                                      |
+      | state    | active                                     |
+      | lesson   | Water the moonflowers first.               |
+      | evidence | [{:session "greenhouse" :entries ["e-1"]}] |
     Then the prompt "Status?" on session "greenhouse" matches:
-      | key                          | value                                                                                          | #comment                        |
+      | key                          | value                                                                                        | #comment                        |
       | system[0].text               | #"(?s).*ship's botanist.*These are lessons this crew learned.*Water the moonflowers first\." | soul, then labelled habits last |
-      | system[0].cache_control.type | ephemeral                                                                                      | sits in the cached prefix       |
+      | system[0].cache_control.type | ephemeral                                                                                    | sits in the cached prefix       |
 
   Scenario: a proposed habit does not appear in the system prompt
     Given the isaac EDN file "dream/hieronymus/moonflowers.edn" exists with:
-      | path     | value                        |
-      | state    | proposed                     |
-      | lesson   | Water the moonflowers first. |
-      | evidence | ["greenhouse"]               |
+      | path     | value                                      |
+      | state    | proposed                                   |
+      | lesson   | Water the moonflowers first.               |
+      | evidence | [{:session "greenhouse" :entries ["e-1"]}] |
     And the following model responses are queued:
       | type | content | model |
       | text | Status. | echo  |
@@ -55,10 +55,10 @@ Feature: Active always-on habits in the system prompt
       | name       | crew  |
       | ketch-chat | ketch |
     And the isaac EDN file "dream/hieronymus/moonflowers.edn" exists with:
-      | path     | value                        |
-      | state    | active                       |
-      | lesson   | Water the moonflowers first. |
-      | evidence | ["greenhouse"]               |
+      | path     | value                                      |
+      | state    | active                                     |
+      | lesson   | Water the moonflowers first.               |
+      | evidence | [{:session "greenhouse" :entries ["e-1"]}] |
     And the following model responses are queued:
       | type | content | model |
       | text | Status. | echo  |
