@@ -1,4 +1,3 @@
-@wip
 Feature: Dream digest
   After a dream, the operator gets one short message when there is
   something to act on: new proposals, or a failed dream. A quiet dream

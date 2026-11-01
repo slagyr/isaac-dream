@@ -16,7 +16,6 @@ Feature: dream__propose stores habits as proposed
       | name       | crew       |
       | greenhouse | hieronymus |
 
-  @wip
   Scenario: dream__propose stores a habit as proposed, traced to the calling message
     Given the crew "hieronymus" allows tools: dream/propose
     And the following model responses are queued:
@@ -43,7 +42,6 @@ Feature: dream__propose stores habits as proposed
       | name           |
       | dream__propose |
 
-  @wip
   Scenario: with crew dream.approval :auto, a propose becomes active
     Given the crew "hieronymus" allows tools: dream/propose
     And the isaac EDN file "config/crew/hieronymus.edn" exists with:

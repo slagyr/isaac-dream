@@ -10,8 +10,12 @@
                       :summary "Manage crew habits"
                       :namespace isaac.dream.cli :hosted true}}
  :isaac.config/schema
- {:dream {:schema {:name :dream :type :map :description "Per-crew dream approval policies"
-                   :value-spec {:type :map :schema
-                                {:approval {:type :keyword :description "Habit promotion policy (manual or auto)"
-                                            :validations [[:one-of? :manual :auto]]}}}}}}
-}
+ {:crew {:schema {:type :map :value-spec {:type :map :schema
+                         {:dream {:type :map :factory isaac.dream.run/make-service :schema
+                                  {:enabled {:type :boolean}
+                                   :schedule {:type :string}
+                                   :approval {:type :keyword :validations [[:one-of? :manual :auto]]}
+                                   :model {:type :string}
+                                   :digest {:type :map :schema {:comm {:type :string} :to {:type :string}}}}}}}}}}
+ :isaac.config/check
+ {:dream-schedule {:fn isaac.dream.run/check-schedules}}}

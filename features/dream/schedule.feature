@@ -1,4 +1,3 @@
-@wip
 Feature: Dream schedule
   Dreaming is off by default. A crew dreams only when its resolved
   dream.enabled is true, on its dream.schedule: a 5-field cron expression

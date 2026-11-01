@@ -1,4 +1,3 @@
-@wip
 Feature: Dream diary
   Every dream, quiet or not, writes one diary entry under
   dream/<crew>/diary/. The operator reads recent dreams with

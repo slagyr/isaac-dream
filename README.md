@@ -14,21 +14,22 @@ Depends on [isaac-foundation](https://github.com/slagyr/isaac-foundation) and
 
 ## Vocabulary
 
-- **Dream** — a turn in which a crew reads its recent conversations and
-  proposes habits.
+- **Dream** — a scheduled code-run analysis of a crew’s recent transcript messages.
 - **Habit** — a short lesson private to one crew. Not a skill.
 - **State** — `proposed`, `active`, `rejected`, or `retired`. Only `active`
   habits reach the model.
 - **Promoter** — what moves `proposed` to `active`: the operator CLI
-  (`:manual`, the default) or per-crew `dream.<crew>.approval :auto`.
+  (`:manual`, the default) or per-crew `crew.<id>.dream.approval :auto`.
 
 ## What's here
 
 - Module `isaac.dream` (`isaac.dream.module/create-module`): crew-scoped EDN
   habits, the grant-gated `dream__propose` tool, manual/auto approval, and
-  an active-only system section at order 900.
-- Operator CLI: `isaac dream list|approve|reject|retire|wipe --crew <id>`.
-- [Dream handbook](resources/isaac/dream/handbook.md).
+  an active-only system section at order 900. Dreams schedule through the shared
+  scheduler, record a diary, and send a digest for proposals or failure.
+- Operator CLI: `isaac dream run|diary|show|list|approve|reject|retire|wipe --crew <id>`.
+- [Dream handbook](resources/isaac/dream/handbook.md) covers scheduling,
+  per-crew config, digest routing, evidence, and review.
 
 ## Development
 

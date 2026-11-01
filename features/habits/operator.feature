@@ -105,7 +105,6 @@ Feature: Operator CLI for habits
     When isaac is run with "dream list --crew ketch"
     Then the stdout contains "geode"
 
-  @wip
   Scenario: isaac dream list without --crew shows every crew's proposals
     Given the isaac EDN file "config/crew/ketch.edn" exists with:
       | path  | value  |
@@ -133,7 +132,6 @@ Feature: Operator CLI for habits
       | ketch +rigging +proposed +Check the rigging at dawn\. +ketch-chat            |
     And the stdout does not contain "geode"
 
-  @wip
   Scenario: approving with --lesson stores a reworded habit that supersedes the proposal
     Given the isaac EDN file "dream/hieronymus/moonflowers.edn" exists with:
       | path     | value                                      |
@@ -155,7 +153,6 @@ Feature: Operator CLI for habits
       | state         | retired           |
       | superseded-by | #"moonflowers-.+" |
 
-  @wip
   Scenario: an unknown crew is an error, not an empty list
     When isaac is run with "dream list --crew ghost"
     Then the exit code is 1

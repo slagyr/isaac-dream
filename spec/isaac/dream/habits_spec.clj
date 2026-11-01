@@ -46,4 +46,15 @@
     (sut/propose! @fs* @root "ketch" "Check the ropes." ["deck"] :manual)
     (sut/propose! @fs* @root "hieronymus" "Water first." ["greenhouse"] :auto)
     (should= "These are lessons this crew learned\nKeep watch."
-             (:text (sut/section {:fs @fs* :root @root :crew "ketch"})))))
+             (:text (sut/section {:fs @fs* :root @root :crew "ketch"}))))  (it "retires superseded habits on approval without changing their lessons"
+    (let [old (sut/propose! @fs* @root "ketch" "Keep watch." [{:session "deck" :entries ["e-1"]}] :auto)
+          new (sut/propose! @fs* @root "ketch" "Watch the rigging." [{:session "deck" :entries ["e-2"]}] :manual)]
+      (sut/change-state! @fs* @root "ketch" (:id new) :active)
+      (should= :active (:state (first (filter #(= (:id old) (:id %)) (sut/list-habits @fs* @root "ketch")))))))
+
+  (it "records the approval event in an append-only history"
+    (let [id (:id (sut/propose! @fs* @root "ketch" "Keep watch." [{:session "deck" :entries ["e-1"]}] :manual))]
+      (sut/change-state! @fs* @root "ketch" id :active)
+      (should= [:proposed :approved] (mapv :event (:history (first (sut/list-habits @fs* @root "ketch")))))))
+
+)

@@ -1,4 +1,3 @@
-@wip
 Feature: Dreaming
   A dream is code. It collects a crew's user and assistant messages since
   the last dream (tool calls and tool results are dropped), makes one model

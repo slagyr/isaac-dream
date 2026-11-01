@@ -17,7 +17,19 @@
       (should= [] (habits/list-habits @fs* "/dream-test" "ketch"))))
   (it "promotes valid proposals only when configured for auto approval"
     (with-redefs [store/get-session (fn [& _] {:crew "ketch"})
-                  loader/snapshot (fn [& _] {:dream {"ketch" {:approval :auto}}})]
+                  store/chronicle-transcript (fn [& _] [{:id "e-1" :type "message" :message {:role "user" :content "Keep watch"}}])
+                  loader/snapshot (fn [& _] {:crew {"ketch" {:dream {:approval :auto}}}})]
       (sut/propose-tool {"lesson" "Keep watch." "evidence" ["deck"] "session_key" "deck"
                          "state_dir" "/dream-test" "fs" @fs* "session_store" :stub})
       (should= :active (:state (first (habits/list-habits @fs* "/dream-test" "ketch")))))))
+
+(describe "Live proposal provenance"
+  (with fs* (fs/mem-fs))
+  (it "attaches the calling session's last user entry instead of accepting evidence arguments"
+    (with-redefs [store/get-session (fn [& _] {:crew "ketch"})
+                  store/chronicle-transcript (fn [& _] [{:id "e-7" :type "message" :message {:role "user" :content "Remember this"}}])
+                  loader/snapshot (fn [& _] {:crew {"ketch" {:dream {:approval :manual}}}})]
+      (sut/propose-tool {"lesson" "Keep watch." "session_key" "deck"
+                         "state_dir" "/dream-test" "fs" @fs* "session_store" :stub})
+      (should= [{:session "deck" :entries ["e-7"]}]
+               (:evidence (first (habits/list-habits @fs* "/dream-test" "ketch")))))))

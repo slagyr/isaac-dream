@@ -7,11 +7,18 @@
 
 (describe "Operator habit commands"
   (with fs* (fs/mem-fs))
-  (with opts {:root "/dream-test" :fs @fs*})
+  (with opts {:root "/dream-test" :fs @fs* :config {:crew {"ketch" {:model "grover"}}}})
   (it "approves a proposed habit"
     (let [id (:id (habits/propose! @fs* "/dream-test" "ketch" "Keep watch." ["deck"] :manual))]
       (should= 0 (sut/run (assoc @opts :_raw-args ["approve" id "--crew" "ketch"])))
       (should= :active (:state (first (habits/list-habits @fs* "/dream-test" "ketch"))))))
   (it "refuses an unknown crew"
     (should= 1 (binding [*err* (java.io.StringWriter.)]
-                   (sut/run (assoc @opts :_raw-args ["wipe" "--crew" "../other"]))))))
+                   (sut/run (assoc @opts :_raw-args ["wipe" "--crew" "../other"])))))  (it "shows recent dreams in reverse chronological order"
+    (fs/mkdirs @fs* "/dream-test/dream/ketch/diary")
+    (fs/spit @fs* "/dream-test/dream/ketch/diary/2026-04-21.edn"
+             "{:at \"2026-04-21T03:00:00Z\" :status :succeeded :sessions [\"deck\"]}")
+    (should= 0 (binding [*out* (java.io.StringWriter.)]
+                 (sut/run (assoc @opts :_raw-args ["diary" "--crew" "ketch"])))))
+
+)
