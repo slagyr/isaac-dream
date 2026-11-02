@@ -15,6 +15,8 @@
     [isaac.foundation.nexus :as nexus]))
 
 (def option-spec [[nil "--crew CREW" "Crew whose habits to manage"]
+                  [nil "--since INSTANT" "Window start (ISO instant or UTC date)"]
+                  [nil "--until INSTANT" "Window end (ISO instant or UTC date)"]
                   [nil "--state STATE" "Filter habit state"]
                   [nil "--lesson LESSON" "Approve with replacement lesson"]
                   ["-h" "--help" "Show help"]])
@@ -52,6 +54,14 @@
         (println at (name (keyword status)) (count sessions) (if (= 1 (count sessions)) "session" "sessions")
                  (when (seq proposed) (str "proposed: " (str/join ", " proposed))))))))
 
+(defn parse-bound [flag value]
+  (when value
+    (try
+      (str (if (re-matches #"\d{4}-\d{2}-\d{2}" value)
+             (.toInstant (.atStartOfDay (java.time.LocalDate/parse value) java.time.ZoneOffset/UTC))
+             (java.time.Instant/parse value)))
+      (catch Exception _ (throw (ex-info (str "invalid --" (name flag) ": " value) {}))))))
+
 (defn run [opts]
   (let [[sub & args] (:_raw-args opts)
         {:keys [options arguments errors]} (tools-cli/parse-opts args option-spec)
@@ -74,8 +84,10 @@
                   (when-not crew (throw (ex-info "--crew is required" {})))
                   (require-crew! cfg crew)
                   (case sub
-                    "run" (let [result (dream-run/run! {:fs fs* :root root-dir :cfg cfg :crew crew
-                                                          :now (str (memory/now))
+                    "run" (let [since (parse-bound :since (:since options))
+                                until (parse-bound :until (:until options))
+                                result (dream-run/run! {:fs fs* :root root-dir :cfg cfg :crew crew
+                                                          :now (str (memory/now)) :since since :until until
                                                           :notify! (partial digest! cfg)})]
                               (when (= :empty (:status result)) (println "no new messages")) 0)
                     "diary" (do (diary! fs* root-dir crew) 0)

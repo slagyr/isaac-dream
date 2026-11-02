@@ -84,7 +84,7 @@
 
 (defn reinforce! [fs* root crew id evidence at]
   (when-let [habit (find-habit fs* root crew id)]
-    (when (= "active" (name (:state habit)))
+    (when (#{"active" "proposed"} (name (:state habit)))
       (save! fs* root crew (update habit :history (fnil conj []) (event at :reinforced {:dream at} evidence))))))
 
 (defn wipe! [fs* root crew]

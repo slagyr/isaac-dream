@@ -4,7 +4,7 @@ A habit is a short, crew-private lesson. Only **active** habits are included in
 that crew's system prompt. Habits are stored under `dream/<crew>/<id>.edn` in
 the Isaac root, not in config or the crew workspace. Each record has evidence
 (`{:session "greenhouse" :entries ["e-7f3a"]}`), an append-only history, and,
-for dreamed habits, the diary timestamp in `:dream`. Reinforcement adds a
+for dreamed habits, the diary timestamp in `:dream`. Reinforcement of proposed or active habits adds a
 history event without changing state. A replacement is a new habit with
 `:supersedes`; approval retires its predecessors and records `:superseded-by`.
 Deleting a session leaves missing evidence rather than deleting the habit.
@@ -22,28 +22,37 @@ then enable individual crews in `config/crew/<id>.edn`:
 The five-field cron schedule uses the configured `:tz`; an enabled crew
 without a resolved schedule fails config validation. Override `:schedule`
 per crew (e.g. `"0 * * * *"`), `:model` to choose a different analysis model,
-`:approval` to `:auto`, and `:digest` to `{:comm "discord" :to "operator"}`.
+`:approval` to `:auto`, `:batch` to a positive message count (default 400), and `:digest` to `{:comm "discord" :to "operator"}`.
 Otherwise the crew's model and `:attention :notify` destination are used.
 The shared scheduler reconciles tasks when config reloads. `dream__propose`
 and the active-habits prompt section work regardless of `:dream :enabled`.
 
 ## What happens at night
 
-Code obtains a per-crew lock (one-hour expiry), gathers new user and assistant
-message text since the previous watermark, and drops tool calls and results.
-It labels lines `<session>#<n>` and makes one model call with the crew's soul,
-active habits with ids, and the window. The model may propose habits or
-reinforce active ones; citations outside the window are dropped and recorded.
-On success the watermark advances to the dream start time. No new messages:
-no model call or digest. A failed model call preserves the watermark and
-writes a failure diary entry. The diary lives under
+Code obtains a per-crew lock (one-hour expiry), gathers user and assistant
+message text in the window after the watermark through the dream start time,
+and drops tool calls and results. `--since` overrides the watermark for this
+run; `--until` overrides the end. Both accept ISO instants or dates (midnight
+UTC). The window is processed oldest first in batches of `dream.batch` messages
+(default 400), with one model call per batch. Messages sharing a timestamp stay
+together, even when this makes a batch larger than its configured size. Lines
+are labeled `<session>#<n>` across all batches. Every prompt includes the crew
+soul and current proposed and active habits with ids, lessons, and states so
+later batches can reinforce earlier proposals. Citations outside the current
+batch are dropped. Success moves the watermark to the window's end (never
+backward); a failed batch leaves it at the last message of the last completed
+batch, or unchanged if none completed. No new messages: no model call or digest.
+The diary records the effective window, completed batch count, proposals and
+reinforcements across batches, and failures. One digest is sent per run for
+proposals or failure.
+The diary lives under
 `dream/<crew>/diary/<timestamp>.edn`. A digest goes to the configured
 notification destination only for new proposals or failure; a quiet dream
 still writes a diary entry.
 
 ## Operator CLI
 
-- `isaac dream run --crew <id>` — run now, even for a disabled crew (but not
+- `isaac dream run --crew <id> [--since <date-or-instant>] [--until <date-or-instant>]` — run now, even for a disabled crew (but not
   without new messages).
 - `isaac dream diary --crew <id>` — recent entries, newest first.
 - `isaac dream list [--crew <id>] [--state proposed]` — inspect all crews or

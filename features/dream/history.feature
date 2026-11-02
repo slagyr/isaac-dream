@@ -17,7 +17,6 @@ Feature: Dreaming over history
       | name       | crew       |
       | greenhouse | hieronymus |
 
-  @wip
   Scenario: --since replays history from before the watermark
     Given the isaac EDN file "dream/hieronymus/state.edn" exists with:
       | path      | value                |
@@ -43,7 +42,6 @@ Feature: Dreaming over history
       | window.since | 2026-04-01T00:00:00Z |
       | window.until | 2026-04-22T03:00:00Z |
 
-  @wip
   Scenario: --until ends the window and the watermark there
     Given session "greenhouse" has transcript:
       | timestamp            | message.role | message.content                     |
@@ -66,7 +64,6 @@ Feature: Dreaming over history
       | path         | value                |
       | window.until | 2026-04-21T00:00:00Z |
 
-  @wip
   Scenario: replaying older history leaves a later watermark alone
     Given the isaac EDN file "dream/hieronymus/state.edn" exists with:
       | path      | value                |
@@ -87,7 +84,6 @@ Feature: Dreaming over history
       | path      | value                | #comment          |
       | watermark | 2026-04-22T00:00:00Z | never moves back |
 
-  @wip
   Scenario: a large window is read in batches, one model call each
     Given the isaac EDN file "config/crew/hieronymus.edn" exists with:
       | path        | value |
@@ -126,7 +122,6 @@ Feature: Dreaming over history
       | path      | value                |
       | watermark | 2026-04-22T03:00:00Z |
 
-  @wip
   Scenario: a failed batch keeps what earlier batches found and the watermark where they stopped
     Given the isaac EDN file "config/crew/hieronymus.edn" exists with:
       | path        | value |
@@ -158,7 +153,6 @@ Feature: Dreaming over history
       | proposed | ["moonflowers"] |
       | error    | #".*500.*"      |
 
-  @wip
   Scenario: an unreadable --since is refused before any model call
     Given session "greenhouse" has transcript:
       | timestamp            | message.role | message.content                     |

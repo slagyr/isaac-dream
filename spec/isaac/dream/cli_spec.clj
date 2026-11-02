@@ -8,6 +8,14 @@
 (describe "Operator habit commands"
   (with fs* (fs/mem-fs))
   (with opts {:root "/dream-test" :fs @fs* :config {:crew {"ketch" {:model "grover"}}}})
+  (it "parses dates at UTC midnight and ISO instants"
+    (should= "2026-04-01T00:00:00Z" (sut/parse-bound :since "2026-04-01"))
+    (should= "2026-04-01T05:00:00Z" (sut/parse-bound :until "2026-04-01T01:00:00-04:00")))
+  (it "refuses an invalid --until before starting a dream"
+    (let [err (java.io.StringWriter.)]
+      (should= 1 (binding [*err* err]
+                   (sut/run (assoc @opts :_raw-args ["run" "--crew" "ketch" "--until" "tomorrow"]))))
+      (should-contain "invalid --until: tomorrow" (str err))))
   (it "approves a proposed habit"
     (let [id (:id (habits/propose! @fs* "/dream-test" "ketch" "Keep watch." ["deck"] :manual))]
       (should= 0 (sut/run (assoc @opts :_raw-args ["approve" id "--crew" "ketch"])))

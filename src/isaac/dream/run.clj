@@ -19,7 +19,7 @@
 (defn settings [cfg crew]
   (let [defaults (get-in cfg [:defaults :crew :dream])
         specific (:dream (or (get-in cfg [:crew crew]) (get-in cfg [:crew (keyword crew)])))]
-    (merge {:enabled false :approval :manual} defaults specific)))
+    (merge {:enabled false :approval :manual :batch 400} defaults specific)))
 
 (defn check-schedules [{:keys [config]}]
   {:errors (vec (for [[crew _] (:crew config)
@@ -49,15 +49,33 @@
                                                 (not (pos? (compare timestamp until))))]
                                  (assoc entry :session id :role role :text text :timestamp timestamp))))
                      (sort-by (juxt :timestamp :session))
-                     (take 400)
                      vec)
         counters (atom {})
         labelled (mapv (fn [entry]
                          (let [n (get (swap! counters update (:session entry) (fnil inc 0)) (:session entry))]
                            (assoc entry :label (str (:session entry) "#" n)))) entries)]
-    {:lines (mapv #(str (:label %) " " (:timestamp %) " " (:role %) ": " (:text %)) labelled)
+    {:entries labelled
+     :lines (mapv #(str (:label %) " " (:timestamp %) " " (:role %) ": " (:text %)) labelled)
      :labels (into {} (map (juxt :label identity) labelled))
      :sessions (vec (distinct (map :session labelled)))}))
+
+(defn batches [window size]
+  (when-not (pos? size) (throw (ex-info "dream.batch must be positive" {:batch size})))
+  (loop [remaining (:entries window) result []]
+    (if (empty? remaining)
+      result
+      (let [initial (take size remaining)
+            end (:timestamp (last initial))
+            entries (vec (concat initial (take-while #(= end (:timestamp %)) (drop size remaining))))]
+        (recur (drop (count entries) remaining)
+               (conj result {:entries entries
+                             :until end
+                             :lines (mapv #(str (:label %) " " (:timestamp %) " " (:role %) ": " (:text %)) entries)
+                             :labels (into {} (map (juxt :label identity) entries))
+                             :sessions (vec (distinct (map :session entries)))}))))))
+
+(defn later [old candidate]
+  (if (and old (or (nil? candidate) (pos? (compare old candidate)))) old candidate))
 
 (defn evidence [window labels]
   (->> labels
@@ -79,7 +97,34 @@
     (fs/mkdirs fs* dir)
     (fs/spit fs* (str dir "/" (str/replace at ":" "-") ".edn") (pr-str diary))))
 
-(defn run! [{:keys [fs root cfg crew session-store now notify!] :as opts}]
+(defn- dream-batch! [fs* root cfg crew now provider model soul batch]
+  (let [prompt (str "Find lasting habits in these conversations. Respond with JSON propose and reinforce.\n"
+                    soul "\nCurrent habits: "
+                    (str/join "; " (map (fn [{:keys [id lesson state]}]
+                                          (str id " " (name (keyword state)) " " lesson))
+                                        (habits/list-habits fs* root crew)))
+                    "\n" (str/join "\n" (:lines batch)))
+        result (dispatch/dispatch-chat provider {:model model :messages [{:role "user" :content prompt}]})]
+    (when (:error result) (throw (ex-info (str (or (:status result) (:message result) (:error result))) {})))
+    (let [answer (json/parse-string (:content result) true)
+          approval (:approval (settings cfg crew))
+          dropped (atom [])
+          proposals (reduce (fn [saved {:keys [id lesson supersedes] :as proposal}]
+                              (doseq [label (:evidence proposal) :when (not (contains? (:labels batch) label))]
+                                (swap! dropped conj {:habit id :label label :reason :not-in-window}))
+                              (let [valid (evidence batch (:evidence proposal))]
+                                (if (empty? valid)
+                                  (do (swap! dropped conj {:habit id :reason :no-evidence}) saved)
+                                  (try
+                                    (conj saved (habits/propose! fs* root crew lesson valid approval
+                                                                 {:id id :dream now :at now :supersedes supersedes}))
+                                    (catch Exception _ saved))))) [] (:propose answer))
+          reinforced (vec (keep (fn [{:keys [id] :as reinforcement}]
+                                  (when-let [valid (seq (evidence batch (:evidence reinforcement)))]
+                                    (when (habits/reinforce! fs* root crew id (vec valid) now) id))) (:reinforce answer)))]
+      {:proposals proposals :reinforced reinforced :dropped @dropped})))
+
+(defn run! [{:keys [fs root cfg crew session-store now notify! since until]}]
   (let [fs* (or fs (nexus/get :fs) (fs/instance))
         root (or root (nexus/get :root) (loader/root))
         cfg (or cfg (loader/snapshot "dream run"))
@@ -87,7 +132,11 @@
         ss (or session-store (nexus/get-in [:sessions :store]) (store/registered-store)
                (sidecar-store/create-store root fs*))
         previous (read-state fs* root crew)
-        lock (get-in previous [:lock :at])]
+        lock (get-in previous [:lock :at])
+        since (or since (:watermark previous))
+        until (or until now)
+        progress (atom {:at now :window {:since since :until until} :batches 0
+                        :sessions [] :proposed [] :reinforced [] :dropped [] :proposals []})]
     (when (and lock (< (- (.toEpochMilli (java.time.Instant/parse now))
                           (.toEpochMilli (java.time.Instant/parse lock))) 3600000))
       (throw (ex-info "already dreaming" {})))
@@ -98,45 +147,34 @@
                           (filter #(= crew (:crew %)))
                           (map (fn [session] {:id (or (:id session) (:name session))
                                               :entries (store/chronicle-transcript ss (or (:id session) (:name session)))})))
-            window (window sessions (:watermark previous) now)]
-        (if (empty? (:lines window))
+            messages (window sessions since until)]
+        (if (empty? (:entries messages))
           {:status :empty :message "no new messages"}
-          (let [{:keys [provider model soul context-window]} (resolve/resolve-crew-context cfg crew
-                                                         {:model-override (:model (settings cfg crew))})
-                prompt (str "Find lasting habits in these conversations. Respond with JSON propose and reinforce.\n"
-                            soul "\nCurrent habits: " (str/join "; " (map (fn [{:keys [id lesson]}] (str id " " lesson))
-                                                       (filter #(= "active" (name (:state %)))
-                                                               (habits/list-habits fs* root crew))))
-                            "\n" (str/join "\n" (:lines window)))
-                result (dispatch/dispatch-chat provider {:model model :messages [{:role "user" :content prompt}]})]
-            (when (:error result) (throw (ex-info (str (or (:status result) (:message result) (:error result))) {})))
-            (let [answer (json/parse-string (:content result) true)
-                  approval (:approval (settings cfg crew))
-                  dropped (atom [])
-                  proposals (reduce (fn [saved {:keys [id lesson supersedes] :as proposal}]
-                                      (doseq [label (:evidence proposal) :when (not (contains? (:labels window) label))]
-                                        (swap! dropped conj {:habit id :label label :reason :not-in-window}))
-                                      (let [valid (evidence window (:evidence proposal))]
-                                        (if (empty? valid)
-                                          (do (swap! dropped conj {:habit id :reason :no-evidence}) saved)
-                                          (try
-                                            (conj saved (habits/propose! fs* root crew lesson valid approval
-                                                                         {:id id :dream now :at now :supersedes supersedes}))
-                                            (catch Exception _ saved))))) [] (:propose answer))
-                  reinforced (vec (keep (fn [{:keys [id] :as reinforcement}]
-                                          (when-let [valid (seq (evidence window (:evidence reinforcement)))]
-                                            (when (habits/reinforce! fs* root crew id (vec valid) now) id))) (:reinforce answer)))
-                  diary {:at now :status "succeeded" :window {:since (:watermark previous) :until now}
-                         :sessions (:sessions window) :proposed (mapv :id proposals)
-                         :reinforced reinforced :dropped @dropped}]
+          (let [{:keys [provider model soul]} (resolve/resolve-crew-context cfg crew
+                                                                            {:model-override (:model (settings cfg crew))})]
+            (doseq [batch (batches messages (:batch (settings cfg crew)))]
+              (let [{:keys [proposals reinforced dropped]} (dream-batch! fs* root cfg crew now provider model soul batch)]
+                (swap! progress (fn [p] (-> p
+                                           (update :batches inc)
+                                           (update :sessions into (:sessions batch))
+                                           (update :proposed into (map :id proposals))
+                                           (update :reinforced into reinforced)
+                                           (update :dropped into dropped)
+                                           (update :proposals into proposals))))
+                (write-state! fs* root crew (assoc previous :lock {:at now}
+                                                  :watermark (later (:watermark previous) (:until batch))))))
+            (let [diary (-> @progress (dissoc :proposals) (assoc :status "succeeded")
+                            (update :sessions #(vec (distinct %))))]
               (diary! fs* root crew now diary)
-              (write-state! fs* root crew (assoc previous :watermark now))
-              (when (seq proposals)
-                (when notify! (notify! crew proposals nil)))
+              (write-state! fs* root crew (assoc previous :lock {:at now}
+                                                :watermark (later (:watermark previous) until)))
+              (when (seq (:proposals @progress))
+                (when notify! (notify! crew (:proposals @progress) nil)))
               diary))))
       (catch Exception e
-        (diary! fs* root crew now {:at now :status "failed" :error (str (ex-message e))})
-        (when notify! (notify! crew [] (ex-message e)))
+        (diary! fs* root crew now (-> @progress (dissoc :proposals)
+                                     (assoc :status "failed" :error (str (ex-message e)))))
+        (when notify! (notify! crew (:proposals @progress) (ex-message e)))
         (throw e))
       (finally (write-state! fs* root crew (dissoc (read-state fs* root crew) :lock))))))
 

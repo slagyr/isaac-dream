@@ -19,7 +19,7 @@
 
 (describe "Dream config"
   (it "keeps dreaming off until enabled and inherits the crew default schedule"
-    (should= {:enabled false :approval :manual :schedule "0 3 * * *"}
+    (should= {:enabled false :approval :manual :batch 400 :schedule "0 3 * * *"}
              (sut/settings {:defaults {:crew {:dream {:schedule "0 3 * * *"}}}
                             :crew {"ketch" {:model "grover"}}} "ketch")))
   (it "overrides fleet auto approval for a manual crew"
@@ -39,6 +39,22 @@
                      {:id (str "e-" n) :type "message" :timestamp (format "2026-04-21T14:%02d:%02dZ" (quot n 60) (mod n 60))
                       :message {:role "user" :content (str n)}})
           window (sut/window [{:id "deck" :entries messages}] nil "2026-04-22T03:00:00Z")]
-      (should= 400 (count (:lines window)))
+      (should= 401 (count (:lines window)))
       (should= "deck#1 2026-04-21T14:00:00Z user: 0" (first (:lines window)))
-      (should= "deck#400 2026-04-21T14:06:39Z user: 399" (last (:lines window))))))
+      (should= "deck#401 2026-04-21T14:06:40Z user: 400" (last (:lines window))))))
+
+(describe "Dream batches"
+  (it "keeps equal timestamps together and labels across batches"
+    (let [sessions [{:id "deck" :entries (mapv (fn [n t] {:id (str "e-" n) :type "message" :timestamp t
+                                                       :message {:role "user" :content (str n)}})
+                                                 (range 4) ["2026-04-21T01:00:00Z" "2026-04-21T01:01:00Z"
+                                                            "2026-04-21T01:01:00Z" "2026-04-21T01:02:00Z"])}]
+          batches (sut/batches (sut/window sessions nil "2026-04-22T00:00:00Z") 2)]
+      (should= [3 1] (mapv #(count (:lines %)) batches))
+      (should= ["deck#1" "deck#2" "deck#3" "deck#4"] (mapv :label (mapcat :entries batches)))
+      (should= "2026-04-21T01:01:00Z" (:until (first batches))))))
+
+(describe "Dream watermark"
+  (it "advances through batches without moving backward"
+    (should= "2026-04-22T00:00:00Z" (sut/later "2026-04-22T00:00:00Z" "2026-04-21T00:00:00Z"))
+    (should= "2026-04-23T00:00:00Z" (sut/later "2026-04-22T00:00:00Z" "2026-04-23T00:00:00Z"))))

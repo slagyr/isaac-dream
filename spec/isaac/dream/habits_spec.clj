@@ -52,6 +52,13 @@
       (sut/change-state! @fs* @root "ketch" (:id new) :active)
       (should= :active (:state (first (filter #(= (:id old) (:id %)) (sut/list-habits @fs* @root "ketch")))))))
 
+  (it "reinforces a proposed habit without approving it"
+    (let [id (:id (sut/propose! @fs* @root "ketch" "Keep watch." ["deck"] :manual))]
+      (sut/reinforce! @fs* @root "ketch" id [{:session "deck" :entries ["e-2"]}] "2026-04-21T00:00:00Z")
+      (let [habit (sut/find-habit @fs* @root "ketch" id)]
+        (should= :proposed (:state habit))
+        (should= :reinforced (:event (last (:history habit)))))))
+
   (it "records the approval event in an append-only history"
     (let [id (:id (sut/propose! @fs* @root "ketch" "Keep watch." [{:session "deck" :entries ["e-1"]}] :manual))]
       (sut/change-state! @fs* @root "ketch" id :active)
