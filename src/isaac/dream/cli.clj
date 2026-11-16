@@ -77,7 +77,7 @@
     (try
       (let [cfg (or (:config opts) (loader/load-config! root-dir fs* "dream CLI") {})]
         (cond
-          (:help options) (do (println "isaac dream run|diary|show|list|approve|reject|retire|pin|unpin|wipe") 0)
+          (:help options) (do (println "isaac dream run|condense|diary|show|list|approve|reject|retire|pin|unpin|wipe") 0)
           (seq errors) (throw (ex-info (str/join "; " errors) {}))
           (and crew (not (re-matches #"[a-zA-Z0-9_-]+" crew))) (throw (ex-info "invalid crew" {}))
           (= sub "list") (do (when crew (require-crew! cfg crew))
@@ -96,6 +96,10 @@
                                                           :now (str (memory/now)) :since since :until until
                                                           :notify! (partial digest! cfg fs* root-dir)})]
                               (when (= :empty (:status result)) (println "no new messages")) 0)
+                    "condense" (let [{:keys [revisions dropped]} (dream-run/condense! {:fs fs* :root root-dir :cfg cfg :crew crew})]
+                                 (doseq [{:keys [id reason]} dropped] (println id (name reason)))
+                                 (when (seq revisions) (digest! cfg fs* root-dir crew revisions nil))
+                                 0)
                     "diary" (do (diary! fs* root-dir crew) 0)
                     "show" (let [habit (habits/find-habit fs* root-dir crew (first arguments))]
                               (when-not habit (throw (ex-info "Habit not found" {})))
@@ -114,8 +118,13 @@
                             (habits/propose! fs* root-dir crew (:lesson options) (:evidence old) :auto
                                              {:id id :dream (:dream old) :supersedes [(:id old)]})
                             (habits/change-state! fs* root-dir crew id :active))
-                          (habits/change-state! fs* root-dir crew (first arguments)
-                                                ({"approve" :active "reject" :rejected "retire" :retired} sub))) 0)
+                          (let [id (first arguments)
+                                habit (habits/find-habit fs* root-dir crew id)]
+                            (cond
+                              (and (:revision habit) (= sub "approve")) (habits/approve-revision! fs* root-dir crew id)
+                              (and (:revision habit) (= sub "reject")) (habits/reject-revision! fs* root-dir crew id)
+                              :else (habits/change-state! fs* root-dir crew id
+                                                         ({"approve" :active "reject" :rejected "retire" :retired} sub))))) 0)
                     (throw (ex-info "Unknown dream subcommand" {}))))))
       (catch Exception e
         (binding [*out* *err*] (println (ex-message e)))

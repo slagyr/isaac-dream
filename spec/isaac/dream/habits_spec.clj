@@ -130,6 +130,39 @@
         (store/append-message! ss "garden" {:role "user" :content "Water"}))
       (should= #{"2026-04-02"} (sut/active-days ss "ketch")))))))
 
+  (it "proposes a revision without changing the working lesson or strength"
+    (let [original {:id "moonflowers" :state :active :lesson "Water first." :evidence ["greenhouse"]
+                    :history [{:at "2026-04-01T00:00:00Z" :event :approved}]}
+          revision {:lesson "Water first, because they wilt." :why "April loss."}]
+      (sut/save! @fs* @root "ketch" original)
+      (sut/propose-revision! @fs* @root "ketch" "moonflowers" revision "2026-04-02T00:00:00Z")
+      (let [habit (sut/find-habit @fs* @root "ketch" "moonflowers")]
+        (should= "Water first." (:lesson habit))
+        (should= revision (:revision habit))
+        (should= :condense (:by (last (:history habit))))
+        (should= 2.0 (sut/strength habit #{} {})))))
+
+  (it "applies a revision in place and remembers the previous wording"
+    (sut/save! @fs* @root "ketch" {:id "moonflowers" :state :active :lesson "Water first."
+                                     :revision {:lesson "Water first, because they wilt." :why "April loss."}
+                                     :history [{:at "2026-04-01T00:00:00Z" :event :approved}]})
+    (let [habit (sut/approve-revision! @fs* @root "ketch" "moonflowers")]
+      (should= "Water first, because they wilt." (:lesson habit))
+      (should= "April loss." (:why habit))
+      (should-be-nil (:revision habit))
+      (should= "Water first." (:previous (last (:history habit))))
+      (should= 2.0 (sut/strength habit #{} {}))))
+
+  (it "rejects only a pending revision, not the habit"
+    (sut/save! @fs* @root "ketch" {:id "moonflowers" :state :active :lesson "Water first."
+                                     :revision {:lesson "Water later." :why "No reason."}
+                                     :history [{:at "2026-04-01T00:00:00Z" :event :approved}]})
+    (let [habit (sut/reject-revision! @fs* @root "ketch" "moonflowers")]
+      (should= :active (:state habit))
+      (should= "Water first." (:lesson habit))
+      (should-be-nil (:revision habit))
+      (should= :revision-rejected (:event (last (:history habit))))))
+
   (it "weights are reconfigurable without modifying the saved history"
     (let [habit {:history [{:at "2026-04-01T00:00:00Z" :event :approved}
                            {:at "2026-04-02T00:00:00Z" :event :contradicted}]}]

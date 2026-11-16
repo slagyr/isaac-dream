@@ -111,6 +111,41 @@
               (keep-indexed (fn [index c] (when (= c \{) index)) reply))
         (throw (ex-info (str "No JSON object in dream reply: " (subs reply 0 (min 160 (count reply)))) {})))))
 
+(def CONDENSE_PROMPT (str "Condense each listed habit to one short rule with its reason (at most 300 characters). "
+                          "Put the story in why. Return JSON only: "
+                          "{\"revise\":[{\"id\":\"habit-id\",\"lesson\":\"short rule, because reason\",\"why\":\"story\"}]}"))
+
+(defn condense! [{:keys [fs root cfg crew]}]
+  (let [candidates (->> (habits/list-habits fs root crew)
+                        (filter #(and (= :active (keyword (:state %)))
+                                      (or (> (count (:lesson %)) 300) (str/blank? (:why %)))))
+                        vec)]
+    (if (empty? candidates)
+      {:revisions [] :dropped []}
+      (let [{:keys [provider model soul]} (resolve/resolve-crew-context cfg crew
+                                                                         {:model-override (:model (settings cfg crew))})
+            provider (if (satisfies? api/Api provider)
+                       (llm-provider/make-provider (api/display-name provider)
+                                                   (assoc (api/config provider) :root root))
+                       provider)
+            prompt (str CONDENSE_PROMPT "\nCrew soul: " soul "\nHabits: "
+                        (json/generate-string (mapv #(select-keys % [:id :lesson :why]) candidates)))
+            result (dispatch/dispatch-chat provider {:model model :messages [{:role "user" :content prompt}]})]
+        (when (:error result)
+          (throw (ex-info (str (or (:status result) (:message result) (:error result))) {})))
+        (let [eligible (set (map :id candidates))
+              at (str (memory/now))]
+          (reduce (fn [out {:keys [id lesson why] :as revision}]
+                    (cond
+                      (not (contains? eligible id)) out
+                      (and (string? lesson) (> (count lesson) 300))
+                      (update out :dropped conj {:id id :reason :lesson-too-long})
+                      (not (and (string? lesson) (not (str/blank? lesson))
+                                (string? why) (not (str/blank? why)))) out
+                      :else (do (habits/propose-revision! fs root crew id revision at)
+                                (update out :revisions conj (assoc (select-keys revision [:lesson :why]) :id id)))))
+                  {:revisions [] :dropped []} (:revise (answer-object (:content result)))))))))
+
 (defn- dream-batch! [fs* root cfg crew now provider model soul batch]
   (let [prompt (str DREAM_PROMPT "\nCrew soul: \n" soul "\nCurrent habits: "
                     (str/join "; " (map (fn [{:keys [id lesson state]}]

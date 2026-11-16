@@ -72,6 +72,38 @@
                                      (update :history (fnil conj []) (event at :superseded :auto)))))))
      habit)))
 
+(defn- pending-revision! [fs* root crew id]
+  (let [habit (or (find-habit fs* root crew id)
+                  (throw (ex-info "Habit not found" {:id id})))]
+    (when-not (:revision habit)
+      (throw (ex-info "No pending revision" {:id id})))
+    habit))
+
+(defn propose-revision! [fs* root crew id {:keys [lesson why] :as revision} at]
+  (let [habit (or (find-habit fs* root crew id)
+                  (throw (ex-info "Habit not found" {:id id})))]
+    (when-not (and (= :active (keyword (:state habit)))
+                   (string? lesson) (not (str/blank? lesson)) (<= (count lesson) 300)
+                   (string? why) (not (str/blank? why)))
+      (throw (ex-info "Invalid revision" {:id id})))
+    (save! fs* root crew (-> habit (assoc :revision (select-keys revision [:lesson :why]))
+                            (update :history (fnil conj []) (event at :revision-proposed :condense))))))
+
+(defn approve-revision! [fs* root crew id]
+  (let [habit (pending-revision! fs* root crew id)
+        at (str (java.time.Instant/now))]
+    (save! fs* root crew (-> habit
+                            (merge (:revision habit))
+                            (dissoc :revision)
+                            (update :history (fnil conj [])
+                                    (assoc (event at :revised :operator) :previous (:lesson habit)))))))
+
+(defn reject-revision! [fs* root crew id]
+  (let [habit (pending-revision! fs* root crew id)
+        at (str (java.time.Instant/now))]
+    (save! fs* root crew (-> habit (dissoc :revision)
+                            (update :history (fnil conj []) (event at :revision-rejected :operator))))))
+
 (defn change-state! [fs* root crew id state]
   (let [habit (find-habit fs* root crew id)]
     (when-not habit (throw (ex-info "Habit not found" {:id id})))

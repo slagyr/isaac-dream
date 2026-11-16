@@ -1,4 +1,3 @@
-@wip
 Feature: Condensing habits into short rules as approvable revisions
   `isaac dream condense --crew <id>` sends the crew's active habits whose
   lesson is over 300 characters or that have no why to the model once. The
