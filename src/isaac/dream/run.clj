@@ -123,10 +123,14 @@
           approval (:approval (settings cfg crew))
           dropped (atom [])
           reinforced-proposals (atom [])
-          proposals (reduce (fn [saved {:keys [id lesson supersedes] :as proposal}]
+          proposals (reduce (fn [saved {:keys [id lesson why supersedes] :as proposal}]
                               (doseq [label (:evidence proposal) :when (not (contains? (:labels batch) label))]
                                 (swap! dropped conj {:habit id :label label :reason :not-in-window}))
                               (let [valid (evidence batch (:evidence proposal))]
+                                (when (and (string? lesson) (> (count lesson) 300))
+                                  (swap! dropped conj {:habit id :reason :lesson-too-long}))
+                                (if (and (string? lesson) (> (count lesson) 300))
+                                  saved
                                 (if (empty? valid)
                                   (do (swap! dropped conj {:habit id :reason :no-evidence}) saved)
                                   (if (and id (habits/find-habit fs* root crew id))
@@ -135,8 +139,8 @@
                                         saved)
                                     (try
                                       (conj saved (habits/propose! fs* root crew lesson valid approval
-                                                                   {:id id :dream now :at now :supersedes supersedes}))
-                                      (catch Exception _ saved)))))) [] (:propose answer))
+                                                                   {:id id :dream now :at now :why why :supersedes supersedes}))
+                                      (catch Exception _ saved))))))) [] (:propose answer))
           reinforced (vec (keep (fn [{:keys [id kind] :as reinforcement}]
                                   (let [kind (or kind "taught")
                                         labels (:evidence reinforcement)

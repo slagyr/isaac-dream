@@ -4,6 +4,7 @@
     [clojure.string :as str]
     [clojure.tools.cli :as tools-cli]
     [isaac.dream.habits :as habits]
+    [isaac.dream.background :as background]
     [isaac.dream.run :as dream-run]
     [isaac.agent.comm.delivery.queue :as delivery]
     [isaac.agent.tool.memory :as memory]
@@ -29,7 +30,7 @@
   (when-not (or (get-in cfg [:crew crew]) (get-in cfg [:crew (keyword crew)]))
     (throw (ex-info (str "unknown crew: " crew) {}))))
 
-(defn- print-habit! [fs* root-dir crew habit]
+(defn- print-habit! [crew habit]
   (println crew (:id habit) (name (:state habit)) (:lesson habit)
            (str/join "," (map :session (:evidence habit))) (pr-str (:supersedes habit))))
 
@@ -83,7 +84,7 @@
                              (doseq [c (if crew [crew] (crews cfg fs* root-dir))
                                      habit (habits/list-habits fs* root-dir c)
                                      :when (or (nil? (:state options)) (= (:state options) (name (:state habit))))]
-                               (print-habit! fs* root-dir c habit))
+                               (print-habit! c habit))
                              0)
           :else (do
                   (when-not crew (throw (ex-info "--crew is required" {})))
@@ -98,22 +99,9 @@
                     "diary" (do (diary! fs* root-dir crew) 0)
                     "show" (let [habit (habits/find-habit fs* root-dir crew (first arguments))]
                               (when-not habit (throw (ex-info "Habit not found" {})))
-                              (println (pr-str habit))
-                              
-                              (println "Strength:" (format "%.1f" (habits/strength habit
-                                                               (habits/active-days (or (get-in opts [:sessions :store]) (store/registered-store)) crew)
-                                                               (:strength (dream-run/settings cfg crew)))))
-                              (println "Pinned:" (if (:pinned habit) "yes" "no"))
-                              (when-let [ss (or (get-in opts [:sessions :store]) (store/registered-store))]
-                                (doseq [{:keys [session entries]} (:evidence habit)]
-                                  (let [record (store/get-session ss session)
-                                        transcript (when (= crew (:crew record)) (store/chronicle-transcript ss session))]
-                                    (doseq [id entries]
-                                      (if-let [entry (first (filter #(= id (:id %)) transcript))]
-                                        (println session (str (clojure.string/replace (:timestamp entry) #"(?<!Z)$" "Z")) (str (get-in entry [:message :role]) ":")
-                                                 (let [content (get-in entry [:message :content])]
-                                                   (if (string? content) content (str/join "" (map :text content)))))
-                                        (println session "missing evidence" id))))))
+                              (println (background/render habit crew
+                                         (or (get-in opts [:sessions :store]) (store/registered-store))
+                                         (:strength (dream-run/settings cfg crew))))
                               0)
                     "wipe" (do (habits/wipe! fs* root-dir crew) 0)
                     "pin" (do (habits/pin! fs* root-dir crew (first arguments) true) 0)

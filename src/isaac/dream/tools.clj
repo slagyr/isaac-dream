@@ -1,8 +1,11 @@
 (ns isaac.dream.tools
   (:require
+    [clojure.string :as str]
     [isaac.agent.session.store.spi :as store]
     [isaac.agent.tool.fs-bounds :as bounds]
     [isaac.dream.habits :as habits]
+    [isaac.dream.background :as background]
+    [isaac.dream.run :as dream-run]
     [isaac.foundation.config.loader :as loader]))
 
 (defn propose-tool [args]
@@ -34,3 +37,32 @@
 }
                 :required ["lesson"]}
    :handler #'propose-tool})
+
+(defn habit-tool [args]
+  (try
+    (let [args (bounds/string-key-map args)
+          ss (bounds/session-store args)
+          crew (:crew (store/get-session ss (get args "session_key")))]
+      (if-not crew
+        {:result "not found"}
+        (let [fs* (bounds/filesystem args)
+              root (bounds/root args)
+              cfg (or (loader/snapshot "dream habit") {})
+              strength-config (:strength (dream-run/settings cfg crew))
+              id (get args "id")]
+          {:result (if id
+                     (if-let [habit (habits/find-habit fs* root crew id)]
+                       (background/render habit crew ss strength-config)
+                       "not found")
+                     (str/join "\n"
+                       (for [habit (sort-by :id (habits/list-habits fs* root crew))]
+                         (str (:id habit) " " (name (keyword (:state habit)))
+                              " Strength: " (format "%.1f" (habits/strength habit (habits/active-days ss crew) strength-config))
+                              " " (if (:pinned habit) "pinned" "unpinned") " " (:lesson habit)))))})))
+    (catch Exception _ {:result "not found"})))
+
+(defn habit-tool-factory [_]
+  {:description "Read the calling crew's own habits and their background. Omit id to list habits."
+   :builtin? true
+   :parameters {:type "object" :properties {"id" {:type "string"}}}
+   :handler #'habit-tool})

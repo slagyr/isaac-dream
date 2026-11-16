@@ -4,7 +4,8 @@
  :factory     isaac.dream.module/create-module
  :description "Dreaming for Isaac — a crew distills conversations into private habits."
  :handbook    "isaac/dream/handbook.md"
- :isaac.agent/tools {:dream/propose {:factory isaac.dream.tools/propose-tool-factory}}
+ :isaac.agent/tools {:dream/propose {:factory isaac.dream.tools/propose-tool-factory}
+                    :dream/habit {:factory isaac.dream.tools/habit-tool-factory}}
  :isaac.agent/system-sections {:habits {:factory isaac.dream.habits/section :order 900}}
  :isaac/cli {:dream {:usage "dream <subcommand> [options]"
                       :summary "Manage crew habits"

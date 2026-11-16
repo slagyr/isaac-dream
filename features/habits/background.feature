@@ -1,4 +1,3 @@
-@wip
 Feature: A habit is a short rule in the prompt, with its background on demand
   A habit's lesson is one short rule with its reason ("…, because …"), at
   most 300 characters, and it is the only part that goes in the system

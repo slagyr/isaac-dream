@@ -44,9 +44,11 @@
 (defn propose!
   ([fs* root crew lesson evidence approval]
    (propose! fs* root crew lesson evidence approval {}))
-  ([fs* root crew lesson evidence approval {:keys [id dream supersedes at]}]
+  ([fs* root crew lesson evidence approval {:keys [id dream supersedes at why]}]
    (when-not (and (string? lesson) (not (str/blank? lesson)))
      (throw (ex-info "lesson is required" {})))
+   (when (> (count lesson) 300)
+     (throw (ex-info "lesson-too-long" {})))
    (when-not (and (vector? evidence) (seq evidence)
                   (every? #(or (and (string? %) (not (str/blank? %)))
                                (and (string? (:session %)) (seq (:entries %)))) evidence))
@@ -57,6 +59,7 @@
                         :lesson lesson :evidence evidence
                         :history (cond-> [(event at :proposed (if dream {:dream dream} :crew))]
                                    (= :auto approval) (conj (event at :approved :auto)))}
+                 why (assoc :why why)
                  dream (assoc :dream dream)
                  (seq supersedes) (assoc :supersedes (vec supersedes)))]
      (when (find-habit fs* root crew id)
