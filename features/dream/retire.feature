@@ -1,4 +1,3 @@
-@wip
 Feature: Dreams retire habits that people keep complaining about or that fade
   After a dream records what it found, it checks the crew's active habits:
 

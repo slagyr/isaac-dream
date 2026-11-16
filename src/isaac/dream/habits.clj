@@ -99,6 +99,22 @@
       (save! fs* root crew (update habit :history (fnil conj [])
                                   (event at :contradicted {:dream at} evidence))))))
 
+(declare utc-day)
+
+(defn retire-complained! [fs* root crew habit at]
+  (let [recent (->> (:history habit) reverse (take-while #(not= :approved (:event %))))
+        days (->> recent (filter #(= :contradicted (:event %))) (keep (comp utc-day :at)) set)]
+    (when (and (= :active (keyword (:state habit))) (not (:pinned habit)) (<= 2 (count days)))
+      (save! fs* root crew (-> habit (assoc :state :retired)
+                              (update :history conj (assoc (event at :retired {:dream at}) :reason :contradicted)))))))
+
+(defn propose-retirement! [fs* root crew habit at]
+  (let [recent (->> (:history habit) reverse
+                    (take-while #(not (#{:approved :reinforced} (:event %)))))]
+    (when (and (= :active (keyword (:state habit))) (not (:pinned habit))
+               (not-any? #(= :retire-proposed (:event %)) recent))
+      (save! fs* root crew (update habit :history conj (event at :retire-proposed {:dream at}))))))
+
 (defn pin! [fs* root crew id pinned?]
   (let [habit (or (find-habit fs* root crew id)
                   (throw (ex-info "Habit not found" {:id id})))

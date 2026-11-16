@@ -200,13 +200,29 @@
                                            (update :proposals into proposals))))
                 (write-state! fs* root crew (assoc previous :lock {:at now}
                                                   :watermark (later (:watermark previous) (:until batch))))))
+            (let [days (habits/active-days ss crew)
+                  floor (get-in (settings cfg crew) [:strength :floor] 0.5)
+                  strength-config (:strength (settings cfg crew))
+                  retired (atom [])
+                  retire-proposed (atom [])]
+              (doseq [habit (habits/list-habits fs* root crew)
+                      :when (and (= :active (keyword (:state habit))) (not (:pinned habit)))]
+                (if-let [result (habits/retire-complained! fs* root crew habit now)]
+                  (swap! retired conj (:id result))
+                  (when (and (not= :contradicted (:event (last (:history habit))))
+                             (< (habits/strength habit days strength-config) floor)
+                             (habits/propose-retirement! fs* root crew habit now))
+                    (swap! retire-proposed conj (:id habit)))))
+              (swap! progress assoc :retired @retired :retire-proposed @retire-proposed))
             (let [diary (-> @progress (dissoc :proposals) (assoc :status "succeeded")
                             (update :sessions #(vec (distinct %))))]
               (diary! fs* root crew now diary)
               (write-state! fs* root crew (assoc previous :lock {:at now}
                                                 :watermark (later (:watermark previous) until)))
-              (when (or (seq (:proposals @progress)) (seq (:contradicted @progress)))
-                (when notify! (notify! crew (:proposals @progress) nil (:contradicted @progress))))
+              (when (or (seq (:proposals @progress)) (seq (:contradicted @progress))
+                        (seq (:retired @progress)) (seq (:retire-proposed @progress)))
+                (when notify! (notify! crew (:proposals @progress) nil (:contradicted @progress)
+                                       (:retired @progress) (:retire-proposed @progress))))
               diary))))
       (catch Exception e
         (diary! fs* root crew now (-> @progress (dissoc :proposals)

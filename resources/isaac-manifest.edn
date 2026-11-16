@@ -1,5 +1,5 @@
 {:id          :isaac.dream
- :version     "0.3.1"
+ :version     "0.3.2"
  :builtin?    true
  :factory     isaac.dream.module/create-module
  :description "Dreaming for Isaac — a crew distills conversations into private habits."
@@ -16,7 +16,7 @@
                                    :schedule {:type :string}
                                    :batch {:type :int}
                                    :prompt-chars {:type :int}
-                                   :strength {:type :map :schema {:half-life-days {:type :int}}}
+                                   :strength {:type :map :schema {:half-life-days {:type :int} :floor {:type :double}}}
                                    :approval {:type :keyword :validations [[:one-of? :manual :auto]]}
                                    :model {:type :string}
                                    :digest {:type :map :schema {:comm {:type :string} :to {:type :string}}}}}}}}}}

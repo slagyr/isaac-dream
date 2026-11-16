@@ -77,6 +77,30 @@
           days #{"2026-04-02" "2026-04-04"}]
       (should= -0.5 (sut/strength {:history history} days {:half-life-days 1}))))
 
+  (it "retires only after complaints on two UTC days since approval"
+    (let [habit {:id "watch" :state :active :lesson "Watch." :history
+                 [{:at "2026-04-01T00:00:00Z" :event :contradicted}
+                  {:at "2026-04-02T00:00:00Z" :event :approved}
+                  {:at "2026-04-03T01:00:00Z" :event :contradicted}
+                  {:at "2026-04-03T23:00:00Z" :event :contradicted}]}]
+      (should-be-nil (sut/retire-complained! @fs* @root "ketch" habit "2026-04-03T23:00:00Z"))
+      (let [retired (sut/retire-complained! @fs* @root "ketch"
+                                            (update habit :history conj {:at "2026-04-04T00:00:00Z" :event :contradicted})
+                                            "2026-04-04T00:00:00Z")]
+        (should= :retired (:state retired))
+        (should= :contradicted (:reason (last (:history retired)))))))
+
+  (it "proposes retirement again only after reinforcement or approval"
+    (let [habit {:id "watch" :state :active :lesson "Watch." :history
+                 [{:at "2026-04-01T00:00:00Z" :event :approved}]}]
+      (let [proposed (sut/propose-retirement! @fs* @root "ketch" habit "2026-04-02T00:00:00Z")]
+        (should= :retire-proposed (:event (last (:history proposed))))
+        (should-be-nil (sut/propose-retirement! @fs* @root "ketch" proposed "2026-04-03T00:00:00Z"))
+        (should= :retire-proposed
+                 (:event (last (:history (sut/propose-retirement! @fs* @root "ketch"
+                                  (update proposed :history conj {:event :reinforced :at "2026-04-04T00:00:00Z"})
+                                  "2026-04-05T00:00:00Z"))))))))
+
   (it "pins a lesson without changing its strength"
     (let [id (:id (sut/propose! @fs* @root "ketch" "Keep watch." ["deck"] :auto))]
       (sut/pin! @fs* @root "ketch" id true)

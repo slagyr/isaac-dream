@@ -33,7 +33,7 @@
   (println crew (:id habit) (name (:state habit)) (:lesson habit)
            (str/join "," (map :session (:evidence habit))) (pr-str (:supersedes habit))))
 
-(defn- digest! [cfg fs* root-dir crew proposals error & [contradicted]]
+(defn- digest! [cfg fs* root-dir crew proposals error & [contradicted retired retire-proposed]]
   (let [cfg (or cfg (loader/load-config! (loader/root) (fs/instance) "dream digest"))
         {:keys [comm to]} (or (:digest (dream-run/settings cfg crew))
                               (let [{:keys [comm target]} (get-in cfg [:attention :notify])]
@@ -46,7 +46,10 @@
                                           (str/join "; " (concat (map (fn [{:keys [id lesson]}]
                                                                  (str id ": " lesson " — dream approve " id " --crew " crew)) proposals)
                                                          (map (fn [id] (str id ": " (:lesson (habits/find-habit fs* root-dir crew id))
-                                                                            " contradicted — dream retire " id " --crew " crew)) contradicted)))))
+                                                                            " contradicted — dream retire " id " --crew " crew))
+                                                              (remove (set retired) contradicted))
+                                                         (map (fn [id] (str id ": retired — dream approve " id " --crew " crew)) retired)
+                                                         (map (fn [id] (str id ": faded — dream retire " id " --crew " crew)) retire-proposed)))))
                           :origin {:kind :dream} :crew crew}))))
 
 (defn- diary! [fs* root-dir crew]
