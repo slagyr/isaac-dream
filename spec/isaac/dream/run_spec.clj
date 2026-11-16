@@ -29,6 +29,10 @@
        :habits (habits/list-habits fs* "/dream-test" "hieronymus")
        :diary (edn/read-string (fs/slurp fs* "/dream-test/dream/hieronymus/diary/2026-04-22T03-00-00Z.edn"))}))))
 
+(defn seed-moonflowers! [fs*]
+  (habits/propose! fs* "/dream-test" "hieronymus" "Water moonflowers first."
+                   [{:session "greenhouse" :entries ["old"]}] :auto {:id "moonflowers"}))
+
 (describe "Dream model replies"
   (it "turns a proposal using a proposed habit's id into reinforcement rather than a new proposal"
     (let [seed! (fn [fs*] (habits/propose! fs* "/dream-test" "hieronymus" "Water the moonflowers first."
@@ -64,10 +68,35 @@
     (let [prompt (get-in (:request (dream-with-reply "{\"propose\":[],\"reinforce\":[]}")) [:messages 0 :content])]
       (should-contain "\"propose\":[{\"id\":\"short-slug\",\"lesson\":" prompt)
       (should-contain "\"evidence\":[\"<session>#<n>\"],\"supersedes\":[\"existing-habit-id\"]" prompt)
-      (should-contain "\"reinforce\":[{\"id\":\"existing-habit-id\",\"evidence\":[\"<session>#<n>\"]}]" prompt)
-      (should-contain "{\"propose\":[],\"reinforce\":[]}" prompt)
+      (should-contain "\"reinforce\":[{\"id\":\"existing-habit-id\",\"evidence\":[\"<session>#<n>\"],\"kind\":\"taught|applied\"}]" prompt)
+      (should-contain "{\"propose\":[],\"reinforce\":[],\"contradict\":[]}" prompt)
       (should-contain "greenhouse#1" prompt)
       (should-contain "Ship botanist" prompt)))
+  (it "records an applied reinforcement only when its evidence cites an assistant reply"
+    (let [{:keys [habits diary]} (dream-with-reply
+                                  "{\"reinforce\":[{\"id\":\"moonflowers\",\"kind\":\"applied\",\"evidence\":[\"greenhouse#1\"]}]}"
+                                  seed-moonflowers!)]
+      (should= [] (:reinforced diary))
+      (should= :applied-without-reply (:reason (first (:dropped diary))))
+      (should= :approved (:event (last (:history (first habits)))))))
+  (it "records a taught reinforcement by default"
+    (let [{:keys [habits]} (dream-with-reply
+                            "{\"reinforce\":[{\"id\":\"moonflowers\",\"evidence\":[\"greenhouse#1\"]}]}"
+                            seed-moonflowers!)]
+      (should= :taught (:kind (last (:history (first habits)))))))
+  (it "records a contradiction against an active habit without retiring it"
+    (let [{:keys [habits diary]} (dream-with-reply
+                                  "{\"contradict\":[{\"id\":\"moonflowers\",\"evidence\":[\"greenhouse#1\"]}]}"
+                                  seed-moonflowers!)]
+      (should= ["moonflowers"] (:contradicted diary))
+      (should= :active (:state (first habits)))
+      (should= :contradicted (:event (last (:history (first habits)))))))
+  (it "ignores contradictions without cited window evidence"
+    (let [{:keys [habits diary]} (dream-with-reply
+                                  "{\"contradict\":[{\"id\":\"moonflowers\",\"evidence\":[\"elsewhere#3\"]}]}"
+                                  seed-moonflowers!)]
+      (should= [] (:contradicted diary))
+      (should= :approved (:event (last (:history (first habits)))))))
   (it "records a clear failure with the beginning of a prose-only reply"
     (let [{:keys [diary]} (dream-with-reply "No lasting lessons today, thanks.")]
       (should= "failed" (:status diary))

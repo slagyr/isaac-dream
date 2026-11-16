@@ -130,17 +130,31 @@
                                 (if (empty? valid)
                                   (do (swap! dropped conj {:habit id :reason :no-evidence}) saved)
                                   (if (and id (habits/find-habit fs* root crew id))
-                                    (do (when (habits/reinforce! fs* root crew id valid now)
+                                    (do (when (habits/reinforce! fs* root crew id valid now :taught)
                                           (swap! reinforced-proposals conj id))
                                         saved)
                                     (try
                                       (conj saved (habits/propose! fs* root crew lesson valid approval
                                                                    {:id id :dream now :at now :supersedes supersedes}))
                                       (catch Exception _ saved)))))) [] (:propose answer))
-          reinforced (vec (keep (fn [{:keys [id] :as reinforcement}]
-                                  (when-let [valid (seq (evidence batch (:evidence reinforcement)))]
-                                    (when (habits/reinforce! fs* root crew id (vec valid) now) id))) (:reinforce answer)))]
-      {:proposals proposals :reinforced (into @reinforced-proposals reinforced) :dropped @dropped})))
+          reinforced (vec (keep (fn [{:keys [id kind] :as reinforcement}]
+                                  (let [kind (or kind "taught")
+                                        labels (:evidence reinforcement)
+                                        valid (evidence batch labels)]
+                                    (cond
+                                      (and (= kind "applied")
+                                           (not-any? #(= "assistant" (get-in batch [:labels % :role])) labels))
+                                      (do (swap! dropped conj {:habit id :reason :applied-without-reply}) nil)
+
+                                      (and (seq valid) (#{"taught" "applied"} kind))
+                                      (when (habits/reinforce! fs* root crew id valid now (keyword kind)) id))))
+                                (:reinforce answer)))
+          contradicted (vec (keep (fn [{:keys [id] :as contradiction}]
+                                    (when-let [valid (seq (evidence batch (:evidence contradiction)))]
+                                      (when (habits/contradict! fs* root crew id (vec valid) now) id)))
+                                  (:contradict answer)))]
+      {:proposals proposals :reinforced (into @reinforced-proposals reinforced)
+       :contradicted contradicted :dropped @dropped})))
 
 (defn run! [{:keys [fs root cfg crew session-store now notify! since until]}]
   (let [fs* (or fs (nexus/get :fs) (fs/instance))
@@ -154,7 +168,7 @@
         since (or since (:watermark previous))
         until (if (and until (.isBefore (java.time.Instant/parse until) (java.time.Instant/parse now))) until now)
         progress (atom {:at now :window {:since since :until until} :batches 0
-                        :sessions [] :proposed [] :reinforced [] :dropped [] :proposals []})]
+                        :sessions [] :proposed [] :reinforced [] :contradicted [] :dropped [] :proposals []})]
     (when (and lock (< (- (.toEpochMilli (java.time.Instant/parse now))
                           (.toEpochMilli (java.time.Instant/parse lock))) 3600000))
       (throw (ex-info "already dreaming" {})))
@@ -175,12 +189,13 @@
                                                        (assoc (api/config provider) :root root))
                            provider)]
             (doseq [batch (batches messages (:batch (settings cfg crew)))]
-              (let [{:keys [proposals reinforced dropped]} (dream-batch! fs* root cfg crew now provider model soul batch)]
+              (let [{:keys [proposals reinforced contradicted dropped]} (dream-batch! fs* root cfg crew now provider model soul batch)]
                 (swap! progress (fn [p] (-> p
                                            (update :batches inc)
                                            (update :sessions into (:sessions batch))
                                            (update :proposed into (map :id proposals))
                                            (update :reinforced into reinforced)
+                                           (update :contradicted into contradicted)
                                            (update :dropped into dropped)
                                            (update :proposals into proposals))))
                 (write-state! fs* root crew (assoc previous :lock {:at now}
@@ -190,8 +205,8 @@
               (diary! fs* root crew now diary)
               (write-state! fs* root crew (assoc previous :lock {:at now}
                                                 :watermark (later (:watermark previous) until)))
-              (when (seq (:proposals @progress))
-                (when notify! (notify! crew (:proposals @progress) nil)))
+              (when (or (seq (:proposals @progress)) (seq (:contradicted @progress)))
+                (when notify! (notify! crew (:proposals @progress) nil (:contradicted @progress))))
               diary))))
       (catch Exception e
         (diary! fs* root crew now (-> @progress (dissoc :proposals)

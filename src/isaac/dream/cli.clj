@@ -33,7 +33,7 @@
   (println crew (:id habit) (name (:state habit)) (:lesson habit)
            (str/join "," (map :session (:evidence habit))) (pr-str (:supersedes habit))))
 
-(defn- digest! [cfg crew proposals error]
+(defn- digest! [cfg fs* root-dir crew proposals error & [contradicted]]
   (let [cfg (or cfg (loader/load-config! (loader/root) (fs/instance) "dream digest"))
         {:keys [comm to]} (or (:digest (dream-run/settings cfg crew))
                               (let [{:keys [comm target]} (get-in cfg [:attention :notify])]
@@ -43,8 +43,10 @@
                           :content (if error
                                      (str crew " dream failed: " error)
                                      (str crew " dreamed: "
-                                          (str/join "; " (map (fn [{:keys [id lesson]}]
-                                                               (str id ": " lesson " — dream approve " id " --crew " crew)) proposals))))
+                                          (str/join "; " (concat (map (fn [{:keys [id lesson]}]
+                                                                 (str id ": " lesson " — dream approve " id " --crew " crew)) proposals)
+                                                         (map (fn [id] (str id ": " (:lesson (habits/find-habit fs* root-dir crew id))
+                                                                            " contradicted — dream retire " id " --crew " crew)) contradicted)))))
                           :origin {:kind :dream} :crew crew}))))
 
 (defn- diary! [fs* root-dir crew]
@@ -88,7 +90,7 @@
                                 until (parse-bound :until (:until options))
                                 result (dream-run/run! {:fs fs* :root root-dir :cfg cfg :crew crew
                                                           :now (str (memory/now)) :since since :until until
-                                                          :notify! (partial digest! cfg)})]
+                                                          :notify! (partial digest! cfg fs* root-dir)})]
                               (when (= :empty (:status result)) (println "no new messages")) 0)
                     "diary" (do (diary! fs* root-dir crew) 0)
                     "show" (let [habit (habits/find-habit fs* root-dir crew (first arguments))]

@@ -1,4 +1,3 @@
-@wip
 Feature: Dreams record how a habit was reinforced or contradicted
   A reinforcement is taught when the window teaches the lesson again, and
   applied when the crew's own reply follows the habit with no correction

@@ -84,10 +84,20 @@
                                       (update :history (fnil conj []) (event at :superseded :operator)))))))
       updated)))
 
-(defn reinforce! [fs* root crew id evidence at]
+(defn reinforce!
+  ([fs* root crew id evidence at]
+   (reinforce! fs* root crew id evidence at :taught))
+  ([fs* root crew id evidence at kind]
+   (when-let [habit (find-habit fs* root crew id)]
+     (when (#{"active" "proposed"} (name (:state habit)))
+       (save! fs* root crew (update habit :history (fnil conj [])
+                                   (assoc (event at :reinforced {:dream at} evidence) :kind kind)))))))
+
+(defn contradict! [fs* root crew id evidence at]
   (when-let [habit (find-habit fs* root crew id)]
-    (when (#{"active" "proposed"} (name (:state habit)))
-      (save! fs* root crew (update habit :history (fnil conj []) (event at :reinforced {:dream at} evidence))))))
+    (when (= :active (keyword (:state habit)))
+      (save! fs* root crew (update habit :history (fnil conj [])
+                                  (event at :contradicted {:dream at} evidence))))))
 
 (defn pin! [fs* root crew id pinned?]
   (let [habit (or (find-habit fs* root crew id)

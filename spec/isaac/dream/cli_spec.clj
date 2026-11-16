@@ -2,12 +2,27 @@
   (:require
     [isaac.dream.cli :as sut]
     [isaac.dream.habits :as habits]
+    [isaac.dream.run :as dream-run]
+    [isaac.agent.comm.delivery.queue :as delivery]
     [isaac.foundation.fs :as fs]
     [speclj.core :refer :all]))
 
 (describe "Operator habit commands"
   (with fs* (fs/mem-fs))
   (with opts {:root "/dream-test" :fs @fs* :config {:crew {"ketch" {:model "grover"}}}})
+  (it "names the contradicted lesson and retire command in the digest"
+    (let [sent (atom nil)]
+      (habits/propose! @fs* "/dream-test" "ketch" "Watch the rigging."
+                       [{:session "deck" :entries ["e-1"]}] :auto {:id "rigging"})
+      (with-redefs [dream-run/run! (fn [{:keys [notify!]}]
+                                    (notify! "ketch" [] nil ["rigging"])
+                                    {:status "succeeded"})
+                    delivery/enqueue! (fn [message] (reset! sent message))]
+        (should= 0 (sut/run (assoc @opts :config {:crew {"ketch" {}}
+                                              :attention {:notify {:comm "discord" :target "deck"}}}
+                                  :_raw-args ["run" "--crew" "ketch"])))
+        (should-contain "rigging: Watch the rigging. contradicted — dream retire rigging --crew ketch"
+                        (:content @sent)))))
   (it "parses dates at UTC midnight and ISO instants"
     (should= "2026-04-01T00:00:00Z" (sut/parse-bound :since "2026-04-01"))
     (should= "2026-04-01T05:00:00Z" (sut/parse-bound :until "2026-04-01T01:00:00-04:00")))
