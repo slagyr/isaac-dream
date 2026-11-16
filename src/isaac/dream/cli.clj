@@ -71,7 +71,7 @@
     (try
       (let [cfg (or (:config opts) (loader/load-config! root-dir fs* "dream CLI") {})]
         (cond
-          (:help options) (do (println "isaac dream run|diary|show|list|approve|reject|retire|wipe") 0)
+          (:help options) (do (println "isaac dream run|diary|show|list|approve|reject|retire|pin|unpin|wipe") 0)
           (seq errors) (throw (ex-info (str/join "; " errors) {}))
           (and crew (not (re-matches #"[a-zA-Z0-9_-]+" crew))) (throw (ex-info "invalid crew" {}))
           (= sub "list") (do (when crew (require-crew! cfg crew))
@@ -94,6 +94,11 @@
                     "show" (let [habit (habits/find-habit fs* root-dir crew (first arguments))]
                               (when-not habit (throw (ex-info "Habit not found" {})))
                               (println (pr-str habit))
+                              
+                              (println "Strength:" (format "%.1f" (habits/strength habit
+                                                               (habits/active-days (or (get-in opts [:sessions :store]) (store/registered-store)) crew)
+                                                               (:strength (dream-run/settings cfg crew)))))
+                              (println "Pinned:" (if (:pinned habit) "yes" "no"))
                               (when-let [ss (or (get-in opts [:sessions :store]) (store/registered-store))]
                                 (doseq [{:keys [session entries]} (:evidence habit)]
                                   (let [record (store/get-session ss session)
@@ -106,6 +111,8 @@
                                         (println session "missing evidence" id))))))
                               0)
                     "wipe" (do (habits/wipe! fs* root-dir crew) 0)
+                    "pin" (do (habits/pin! fs* root-dir crew (first arguments) true) 0)
+                    "unpin" (do (habits/pin! fs* root-dir crew (first arguments) false) 0)
                     ("approve" "reject" "retire")
                     (do (if (and (= sub "approve") (:lesson options))
                           (let [old (or (habits/find-habit fs* root-dir crew (first arguments))

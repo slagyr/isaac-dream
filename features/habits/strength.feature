@@ -1,4 +1,3 @@
-@wip
 Feature: Habit strength orders the habits section
   Every habit has a strength computed from its history, never stored:
 

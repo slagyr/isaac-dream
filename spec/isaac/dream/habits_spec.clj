@@ -2,6 +2,10 @@
   (:require
     [isaac.dream.habits :as sut]
     [isaac.foundation.fs :as fs]
+    [isaac.foundation.nexus :as nexus]
+    [isaac.agent.session.store.memory :as memory-store]
+    [isaac.agent.session.store.spi :as store]
+    [isaac.agent.tool.memory :as memory]
     [speclj.core :refer :all]))
 
 (describe "Crew habits"
@@ -63,5 +67,49 @@
     (let [id (:id (sut/propose! @fs* @root "ketch" "Keep watch." [{:session "deck" :entries ["e-1"]}] :manual))]
       (sut/change-state! @fs* @root "ketch" id :active)
       (should= [:proposed :approved] (mapv :event (:history (first (sut/list-habits @fs* @root "ketch")))))))
+
+  (it "counts each event kind once per UTC day and fades across crew active days"
+    (let [history [{:at "2026-04-01T00:00:00Z" :event :approved}
+                   {:at "2026-04-02T01:00:00Z" :event :reinforced}
+                   {:at "2026-04-02T02:00:00Z" :event :reinforced :kind :taught}
+                   {:at "2026-04-02T03:00:00Z" :event :reinforced :kind :applied}
+                   {:at "2026-04-03T01:00:00Z" :event :contradicted}]
+          days #{"2026-04-02" "2026-04-04"}]
+      (should= -0.5 (sut/strength {:history history} days {:half-life-days 1}))))
+
+  (it "pins a lesson without changing its strength"
+    (let [id (:id (sut/propose! @fs* @root "ketch" "Keep watch." ["deck"] :auto))]
+      (sut/pin! @fs* @root "ketch" id true)
+      (should= true (:pinned (sut/find-habit @fs* @root "ketch" id)))
+      (should= :pinned (:event (last (:history (sut/find-habit @fs* @root "ketch" id)))))))
+
+  (it "reserves the budget for pinned lessons before stronger unpinned ones"
+    (doseq [[id lesson history pinned] [["a" "A lesson." [{:at "2026-04-01T00:00:00Z" :event :approved}] true]
+                                        ["b" "B longer lesson." [{:at "2026-04-01T00:00:00Z" :event :approved}
+                                                                  {:at "2026-04-02T00:00:00Z" :event :reinforced}] false]]]
+      (sut/save! @fs* @root "ketch" {:id id :state :active :lesson lesson :history history :pinned pinned}))
+    (should= "These are lessons this crew learned\nA lesson."
+             (:text (sut/section {:fs @fs* :root @root :crew "ketch" :config {:crew {"ketch" {:dream {:prompt-chars 12}}}}}))))
+
+  (it "counts all crews' sessions once per UTC day, regardless of turn origin"
+    (with-out-str (nexus/-with-nexus {:fs @fs*}
+      (binding [memory/*now* (java.time.Instant/parse "2026-04-02T00:00:00Z")]
+      (let [ss (memory-store/create-store "/dream-test")]
+      (store/open-session! ss "deck" {:crew "ketch"})
+      (store/open-session! ss "mast" {:crew "ketch"})
+      (store/open-session! ss "garden" {:crew "hieronymus"})
+      (with-redefs [isaac.agent.tool.memory/now (constantly (java.time.Instant/parse "2026-04-02T23:00:00Z"))]
+        (store/append-message! ss "deck" {:role "user" :content "Ahoy"}))
+      (with-redefs [isaac.agent.tool.memory/now (constantly (java.time.Instant/parse "2026-04-02T23:30:00Z"))]
+        (store/append-message! ss "mast" {:role "assistant" :content "All clear"}))
+      (with-redefs [isaac.agent.tool.memory/now (constantly (java.time.Instant/parse "2026-04-03T01:00:00Z"))]
+        (store/append-message! ss "garden" {:role "user" :content "Water"}))
+      (should= #{"2026-04-02"} (sut/active-days ss "ketch")))))))
+
+  (it "weights are reconfigurable without modifying the saved history"
+    (let [habit {:history [{:at "2026-04-01T00:00:00Z" :event :approved}
+                           {:at "2026-04-02T00:00:00Z" :event :contradicted}]}]
+      (should= -2.0 (sut/strength habit #{} {}))
+      (should= 1.0 (sut/strength habit #{} {:approved 5 :contradicted -4}))))
 
 )

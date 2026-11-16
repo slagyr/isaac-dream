@@ -29,4 +29,16 @@
     (should= 0 (binding [*out* (java.io.StringWriter.)]
                  (sut/run (assoc @opts :_raw-args ["diary" "--crew" "ketch"])))))
 
+  (it "shows computed strength and pin state"
+    (habits/save! @fs* "/dream-test" "ketch" {:id "watch" :state :active :pinned true
+                                                  :lesson "Keep watch." :history [{:at "2026-04-01T00:00:00Z" :event :approved}]})
+    (let [output (with-out-str (should= 0 (sut/run (assoc @opts :_raw-args ["show" "watch" "--crew" "ketch"]))))]
+      (should-contain "Strength: 2.0" output)
+      (should-contain "Pinned: yes" output)))
+
+  (it "unpins a habit while retaining its history"
+    (habits/save! @fs* "/dream-test" "ketch" {:id "watch" :state :active :pinned true :lesson "Keep watch."})
+    (should= 0 (sut/run (assoc @opts :_raw-args ["unpin" "watch" "--crew" "ketch"])))
+    (should= false (:pinned (habits/find-habit @fs* "/dream-test" "ketch" "watch"))))
+
 )

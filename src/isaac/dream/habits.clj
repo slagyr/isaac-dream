@@ -2,7 +2,9 @@
   (:require
     [clojure.edn :as edn]
     [clojure.string :as str]
-    [isaac.foundation.fs :as fs]))
+    [isaac.foundation.fs :as fs]
+    [isaac.agent.session.store.spi :as store]
+    [isaac.agent.session.store.sidecar :as sidecar-store]))
 
 (defn- valid-id? [id]
   (boolean (and (string? id) (re-matches #"[a-zA-Z0-9_-]+" id))))
@@ -87,13 +89,68 @@
     (when (#{"active" "proposed"} (name (:state habit)))
       (save! fs* root crew (update habit :history (fnil conj []) (event at :reinforced {:dream at} evidence))))))
 
+(defn pin! [fs* root crew id pinned?]
+  (let [habit (or (find-habit fs* root crew id)
+                  (throw (ex-info "Habit not found" {:id id})))
+        at (str (java.time.Instant/now))]
+    (save! fs* root crew (-> habit
+                            (assoc :pinned pinned?)
+                            (update :history (fnil conj [])
+                                    (event at (if pinned? :pinned :unpinned) :operator))))))
+
+(defn- utc-day [timestamp]
+  (when timestamp
+    (try (str (.toLocalDate (.atZone (java.time.Instant/parse (str/replace timestamp #"(?<!Z)$" "Z")) java.time.ZoneOffset/UTC)))
+         (catch Exception _ nil))))
+
+(defn active-days [session-store crew]
+  (if session-store
+    (->> (store/list-sessions session-store)
+         (filter #(= (name crew) (some-> (:crew %) name)))
+         (mapcat #(store/chronicle-transcript session-store (or (:id %) (:name %))))
+         (keep (comp utc-day :timestamp))
+         set)
+    #{}))
+
+(defn- event-kind [{:keys [event kind]}]
+  (if (= event :reinforced) [event (or kind :taught)] [event]))
+
+(defn strength [habit days {:keys [half-life-days approved reinforced contradicted]
+                            :or {half-life-days 30 approved 2 reinforced 1 contradicted -4}}]
+  (let [weights {:approved approved :reinforced reinforced :contradicted contradicted}]
+    (->> (:history habit)
+         (filter #(contains? weights (:event %)))
+         (group-by (juxt (comp utc-day :at) event-kind))
+         (map (fn [[[day [type]] _]]
+                (let [elapsed (count (filter #(pos? (compare % day)) days))]
+                  (* (get weights type) (Math/pow 0.5 (/ elapsed (double half-life-days)))))))
+         (reduce + 0.0))))
+
+(defn- dream-settings [config crew]
+  (merge {:prompt-chars 6000 :strength {:half-life-days 30}}
+         (get-in config [:defaults :crew :dream])
+         (get-in config [:crew (name crew) :dream])
+         (get-in config [:crew (keyword crew) :dream])))
+
 (defn wipe! [fs* root crew]
   (doseq [{:keys [id]} (list-habits fs* root crew)]
     (fs/delete fs* (habit-path root crew id))))
 
-(defn section [{:keys [fs root crew]}]
-  (let [lessons (->> (list-habits fs root crew)
-                     (filter #(= "active" (name (:state %))))
-                     (map :lesson))]
+(defn section [{:keys [fs root crew config session-store]}]
+  (let [{:keys [prompt-chars] :as settings} (dream-settings config crew)
+        ss (or session-store (store/registered-store) (sidecar-store/create-store root fs))
+        days (active-days ss crew)
+        habits (->> (list-habits fs root crew)
+                    (filter #(= :active (keyword (:state %))))
+                    (sort-by (fn [habit] [(if (:pinned habit) 0 1)
+                                          (- (strength habit days (:strength settings))) (:id habit)])))
+        lessons (loop [[habit & rest] habits used 0 selected []]
+                  (if-not habit
+                    selected
+                    (let [lesson (:lesson habit)
+                          next-used (+ used (count lesson))]
+                      (if (or (:pinned habit) (<= next-used prompt-chars))
+                        (recur rest next-used (conj selected lesson))
+                        selected))))]
     (when (seq lessons)
       {:text (str/join "\n" (cons "These are lessons this crew learned" lessons))})))
