@@ -6,6 +6,8 @@
     [clojure.string :as str]
     [isaac.agent.config.resolve :as resolve]
     [isaac.agent.drive.dispatch :as dispatch]
+    [isaac.agent.llm.api.protocol :as api]
+    [isaac.agent.llm.provider :as llm-provider]
     [isaac.agent.session.store.spi :as store]
     [isaac.agent.session.store.sidecar :as sidecar-store]
     [isaac.agent.tool.memory :as memory]
@@ -162,7 +164,11 @@
         (if (empty? (:entries messages))
           {:status :empty :message "no new messages"}
           (let [{:keys [provider model soul]} (resolve/resolve-crew-context cfg crew
-                                                                            {:model-override (:model (settings cfg crew))})]
+                                                                            {:model-override (:model (settings cfg crew))})
+                provider (if (satisfies? api/Api provider)
+                           (llm-provider/make-provider (api/display-name provider)
+                                                       (assoc (api/config provider) :root root))
+                           provider)]
             (doseq [batch (batches messages (:batch (settings cfg crew)))]
               (let [{:keys [proposals reinforced dropped]} (dream-batch! fs* root cfg crew now provider model soul batch)]
                 (swap! progress (fn [p] (-> p
