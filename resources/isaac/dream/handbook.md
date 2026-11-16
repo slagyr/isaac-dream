@@ -37,11 +37,15 @@ UTC). The window is processed oldest first in batches of `dream.batch` messages
 (default 400), with one model call per batch. Messages sharing a timestamp stay
 together, even when this makes a batch larger than its configured size. Lines
 are labeled `<session>#<n>` across all batches. Every prompt includes the crew
-soul and current proposed and active habits with ids, lessons, and states so
-later batches can reinforce earlier proposals. Citations outside the current
-batch are dropped. Success moves the watermark to the window's end (never
-backward); a failed batch leaves it at the last message of the last completed
-batch, or unchanged if none completed. No new messages: no model call or digest.
+soul and current habits of every state with ids and lessons, so later batches
+can build on earlier proposals. Repeat a proposed or active lesson by
+reinforcing its id; propose a sharper version with `supersedes`, or merge two
+duplicate active habits with a new proposal superseding both. A proposal
+reusing a proposed or active id records a reinforcement, leaving the original
+lesson unchanged. Citations outside the current batch are dropped. Success
+moves the watermark to the window's end (never backward); a failed batch
+leaves it at the last message of the last completed batch, or unchanged if
+none completed. No new messages: no model call or digest.
 The diary records the effective window, completed batch count, proposals and
 reinforcements across batches, and failures. One digest is sent per run for
 proposals or failure.

@@ -122,20 +122,25 @@
     (let [answer (answer-object (:content result))
           approval (:approval (settings cfg crew))
           dropped (atom [])
+          reinforced-proposals (atom [])
           proposals (reduce (fn [saved {:keys [id lesson supersedes] :as proposal}]
                               (doseq [label (:evidence proposal) :when (not (contains? (:labels batch) label))]
                                 (swap! dropped conj {:habit id :label label :reason :not-in-window}))
                               (let [valid (evidence batch (:evidence proposal))]
                                 (if (empty? valid)
                                   (do (swap! dropped conj {:habit id :reason :no-evidence}) saved)
-                                  (try
-                                    (conj saved (habits/propose! fs* root crew lesson valid approval
-                                                                 {:id id :dream now :at now :supersedes supersedes}))
-                                    (catch Exception _ saved))))) [] (:propose answer))
+                                  (if (and id (habits/find-habit fs* root crew id))
+                                    (do (when (habits/reinforce! fs* root crew id valid now)
+                                          (swap! reinforced-proposals conj id))
+                                        saved)
+                                    (try
+                                      (conj saved (habits/propose! fs* root crew lesson valid approval
+                                                                   {:id id :dream now :at now :supersedes supersedes}))
+                                      (catch Exception _ saved)))))) [] (:propose answer))
           reinforced (vec (keep (fn [{:keys [id] :as reinforcement}]
                                   (when-let [valid (seq (evidence batch (:evidence reinforcement)))]
                                     (when (habits/reinforce! fs* root crew id (vec valid) now) id))) (:reinforce answer)))]
-      {:proposals proposals :reinforced reinforced :dropped @dropped})))
+      {:proposals proposals :reinforced (into @reinforced-proposals reinforced) :dropped @dropped})))
 
 (defn run! [{:keys [fs root cfg crew session-store now notify! since until]}]
   (let [fs* (or fs (nexus/get :fs) (fs/instance))

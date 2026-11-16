@@ -9,11 +9,14 @@
     [isaac.foundation.fs :as fs]
     [speclj.core :refer :all]))
 
-(defn dream-with-reply [reply]
+(defn dream-with-reply
+  ([reply] (dream-with-reply reply nil))
+  ([reply seed!]
   (let [fs* (fs/mem-fs)
         request (atom nil)
         transcript [{:id "e-1" :type "message" :timestamp "2026-04-21T14:00:00Z"
                      :message {:role "user" :content "Always water the moonflowers first."}}]]
+    (when seed! (seed! fs*))
     (with-redefs [store/list-sessions (fn [_] [{:id "greenhouse" :crew "hieronymus"}])
                   store/chronicle-transcript (fn [_ _] transcript)
                   resolve/resolve-crew-context (fn [& _] {:provider :grover :model "echo" :soul "Ship botanist"})
@@ -24,9 +27,29 @@
         (catch Exception _ nil))
       {:request @request
        :habits (habits/list-habits fs* "/dream-test" "hieronymus")
-       :diary (edn/read-string (fs/slurp fs* "/dream-test/dream/hieronymus/diary/2026-04-22T03-00-00Z.edn"))})))
+       :diary (edn/read-string (fs/slurp fs* "/dream-test/dream/hieronymus/diary/2026-04-22T03-00-00Z.edn"))}))))
 
 (describe "Dream model replies"
+  (it "turns a proposal using a proposed habit's id into reinforcement rather than a new proposal"
+    (let [seed! (fn [fs*] (habits/propose! fs* "/dream-test" "hieronymus" "Water the moonflowers first."
+                                           [{:session "greenhouse" :entries ["old"]}] :manual
+                                           {:id "moonflowers"}))
+          {:keys [habits diary]} (dream-with-reply
+                                   "{\"propose\":[{\"id\":\"moonflowers\",\"lesson\":\"Water moonflowers before ferns.\",\"evidence\":[\"greenhouse#1\"]}],\"reinforce\":[]}"
+                                   seed!)]
+      (should= ["moonflowers"] (:reinforced diary))
+      (should= [] (:proposed diary))
+      (should= "Water the moonflowers first." (:lesson (first habits)))
+      (should= :reinforced (:event (last (:history (first habits)))))))
+  (it "rejects an existing-id proposal with no evidence from this window"
+    (let [seed! (fn [fs*] (habits/propose! fs* "/dream-test" "hieronymus" "Water first."
+                                           [{:session "greenhouse" :entries ["old"]}] :manual
+                                           {:id "moonflowers"}))
+          {:keys [habits diary]} (dream-with-reply
+                                   "{\"propose\":[{\"id\":\"moonflowers\",\"lesson\":\"Water first.\",\"evidence\":[\"other#9\"]}],\"reinforce\":[]}"
+                                   seed!)]
+      (should= [] (:reinforced diary))
+      (should= [:proposed] (mapv :event (:history (first habits))))))
   (it "stores a cited lesson from a prose-led JSON fence"
     (let [{:keys [habits diary request]} (dream-with-reply
                                           (str "Here are the lessons:\n```json\n"
@@ -41,7 +64,7 @@
     (let [prompt (get-in (:request (dream-with-reply "{\"propose\":[],\"reinforce\":[]}")) [:messages 0 :content])]
       (should-contain "\"propose\":[{\"id\":\"short-slug\",\"lesson\":" prompt)
       (should-contain "\"evidence\":[\"<session>#<n>\"],\"supersedes\":[\"existing-habit-id\"]" prompt)
-      (should-contain "\"reinforce\":[{\"id\":\"active-habit-id\",\"evidence\":[\"<session>#<n>\"]}]" prompt)
+      (should-contain "\"reinforce\":[{\"id\":\"existing-habit-id\",\"evidence\":[\"<session>#<n>\"]}]" prompt)
       (should-contain "{\"propose\":[],\"reinforce\":[]}" prompt)
       (should-contain "greenhouse#1" prompt)
       (should-contain "Ship botanist" prompt)))

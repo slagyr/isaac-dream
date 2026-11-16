@@ -1,4 +1,3 @@
-@wip
 Feature: Dreams build on existing habits instead of repeating them
   A dream sees every habit the crew already has, whatever its state. When the
   window repeats a lesson the crew already has, the dream reinforces that
