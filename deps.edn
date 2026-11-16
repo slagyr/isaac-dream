@@ -1,7 +1,7 @@
 {:paths ["src" "resources"]
 
  :deps {io.github.slagyr/isaac-foundation {:git/url "https://github.com/slagyr/isaac-foundation.git"
-                                          :git/sha "edc18481808a050f8c2fd657f2e966e6040fcfc3"}
+                                          :git/sha "ab9f1c5711c7f85aefc67100bdaef1b80fe7a736"}
         io.github.slagyr/isaac-agent {:git/url "https://github.com/slagyr/isaac-agent.git"
                                      :git/sha "61329e1ae05433287a746df5167f28f0a0a27683"}}
 
@@ -15,10 +15,10 @@
   :spec {:extra-paths ["spec"]
          :extra-deps  {speclj/speclj {:mvn/version "3.13.0"}
                        io.github.slagyr/isaac-foundation-spec {:git/url "https://github.com/slagyr/isaac-foundation.git"
-                                                              :git/sha "edc18481808a050f8c2fd657f2e966e6040fcfc3"
+                                                              :git/sha "ab9f1c5711c7f85aefc67100bdaef1b80fe7a736"
                                                               :deps/root "spec"}
                        io.github.slagyr/isaac-foundation-test-support {:git/url "https://github.com/slagyr/isaac-foundation.git"
-                                                                      :git/sha "edc18481808a050f8c2fd657f2e966e6040fcfc3"
+                                                                      :git/sha "ab9f1c5711c7f85aefc67100bdaef1b80fe7a736"
                                                                       :deps/root "spec-support"}
                        io.github.slagyr/isaac-agent-spec {:git/url "https://github.com/slagyr/isaac-agent.git"
                                                          :git/sha "61329e1ae05433287a746df5167f28f0a0a27683"
@@ -28,16 +28,16 @@
   :features {:extra-paths ["spec"]
              :extra-deps  {io.github.slagyr/gherclj {:git/tag "v1.4.0" :git/sha "85245b1"}
                            io.github.slagyr/isaac-foundation-spec {:git/url "https://github.com/slagyr/isaac-foundation.git"
-                                                                  :git/sha "edc18481808a050f8c2fd657f2e966e6040fcfc3"
+                                                                  :git/sha "ab9f1c5711c7f85aefc67100bdaef1b80fe7a736"
                                                                   :deps/root "spec"}
                            io.github.slagyr/isaac-foundation-test-support {:git/url "https://github.com/slagyr/isaac-foundation.git"
-                                                                          :git/sha "edc18481808a050f8c2fd657f2e966e6040fcfc3"
+                                                                          :git/sha "ab9f1c5711c7f85aefc67100bdaef1b80fe7a736"
                                                                           :deps/root "spec-support"}
                            io.github.slagyr/isaac-agent-spec {:git/url "https://github.com/slagyr/isaac-agent.git"
                                                              :git/sha "61329e1ae05433287a746df5167f28f0a0a27683"
                                                              :deps/root "spec"}}
              :override-deps {io.github.slagyr/isaac-foundation {:git/url "https://github.com/slagyr/isaac-foundation.git"
-                                                                  :git/sha "edc18481808a050f8c2fd657f2e966e6040fcfc3"}
+                                                                  :git/sha "ab9f1c5711c7f85aefc67100bdaef1b80fe7a736"}
                               io.github.slagyr/isaac-agent {:git/url "https://github.com/slagyr/isaac-agent.git"
                                                              :git/sha "61329e1ae05433287a746df5167f28f0a0a27683"}}
              :main-opts   ["-m" "gherclj.main" "-f" "features"

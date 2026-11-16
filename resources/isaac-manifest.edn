@@ -9,7 +9,7 @@
  :isaac.agent/system-sections {:habits {:factory isaac.dream.habits/section :order 900}}
  :isaac/cli {:dream {:usage "dream <subcommand> [options]"
                       :summary "Manage crew habits"
-                      :namespace isaac.dream.cli :hosted true}}
+                      :namespace isaac.dream.cli :hosted true :server-only true}}
  :isaac.config/schema
  {:crew {:schema {:type :map :value-spec {:type :map :schema
                          {:dream {:type :map :factory isaac.dream.run/make-service :schema
