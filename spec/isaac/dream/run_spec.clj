@@ -1,7 +1,61 @@
 (ns isaac.dream.run-spec
   (:require
+    [clojure.edn :as edn]
+    [isaac.agent.config.resolve :as resolve]
+    [isaac.agent.drive.dispatch :as dispatch]
+    [isaac.agent.session.store.spi :as store]
+    [isaac.dream.habits :as habits]
     [isaac.dream.run :as sut]
+    [isaac.foundation.fs :as fs]
     [speclj.core :refer :all]))
+
+(defn dream-with-reply [reply]
+  (let [fs* (fs/mem-fs)
+        request (atom nil)
+        transcript [{:id "e-1" :type "message" :timestamp "2026-04-21T14:00:00Z"
+                     :message {:role "user" :content "Always water the moonflowers first."}}]]
+    (with-redefs [store/list-sessions (fn [_] [{:id "greenhouse" :crew "hieronymus"}])
+                  store/chronicle-transcript (fn [_ _] transcript)
+                  resolve/resolve-crew-context (fn [& _] {:provider :grover :model "echo" :soul "Ship botanist"})
+                  dispatch/dispatch-chat (fn [_ message] (reset! request message) {:content reply})]
+      (try
+        (sut/run! {:fs fs* :root "/dream-test" :cfg {:crew {"hieronymus" {}}}
+                   :crew "hieronymus" :session-store :fake :now "2026-04-22T03:00:00Z"})
+        (catch Exception _ nil))
+      {:request @request
+       :habits (habits/list-habits fs* "/dream-test" "hieronymus")
+       :diary (edn/read-string (fs/slurp fs* "/dream-test/dream/hieronymus/diary/2026-04-22T03-00-00Z.edn"))})))
+
+(describe "Dream model replies"
+  (it "stores a cited lesson from a prose-led JSON fence"
+    (let [{:keys [habits diary request]} (dream-with-reply
+                                          (str "Here are the lessons:\n```json\n"
+                                               "{\"propose\":[{\"id\":\"moonflowers\",\"lesson\":\"Water the moonflowers first.\","
+                                               "\"evidence\":[\"greenhouse#1\"],\"supersedes\":[]}],\"reinforce\":[]}\n```"))]
+      (should= "succeeded" (:status diary))
+      (should= "moonflowers" (:id (first habits)))
+      (should= [{:session "greenhouse" :entries ["e-1"]}] (:evidence (first habits)))
+      (should-contain "greenhouse#1 2026-04-21T14:00:00Z user: Always water the moonflowers first."
+                      (get-in request [:messages 0 :content]))))
+  (it "includes the exact answer shape in the model prompt"
+    (let [prompt (get-in (:request (dream-with-reply "{\"propose\":[],\"reinforce\":[]}")) [:messages 0 :content])]
+      (should-contain "\"propose\":[{\"id\":\"short-slug\",\"lesson\":" prompt)
+      (should-contain "\"evidence\":[\"<session>#<n>\"],\"supersedes\":[\"existing-habit-id\"]" prompt)
+      (should-contain "\"reinforce\":[{\"id\":\"active-habit-id\",\"evidence\":[\"<session>#<n>\"]}]" prompt)
+      (should-contain "{\"propose\":[],\"reinforce\":[]}" prompt)
+      (should-contain "greenhouse#1" prompt)
+      (should-contain "Ship botanist" prompt)))
+  (it "records a clear failure with the beginning of a prose-only reply"
+    (let [{:keys [diary]} (dream-with-reply "No lasting lessons today, thanks.")]
+      (should= "failed" (:status diary))
+      (should-contain "No JSON object" (:error diary))
+      (should-contain "No lasting lessons today" (:error diary))))
+  (it "accepts prose before and after an unfenced JSON object"
+    (let [{:keys [diary]} (dream-with-reply "Result: {\"propose\":[],\"reinforce\":[]} End.")]
+      (should= "succeeded" (:status diary))))
+  (it "skips an invalid brace in the lead-in before the JSON"
+    (let [{:keys [diary]} (dream-with-reply "Look {here}: {\"propose\":[],\"reinforce\":[]}")]
+      (should= "succeeded" (:status diary)))))
 
 (describe "Dream window"
   (it "labels only user and assistant text, never tool output"

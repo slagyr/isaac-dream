@@ -2,6 +2,7 @@
   (:require
     [cheshire.core :as json]
     [clojure.edn :as edn]
+    [clojure.java.io :as io]
     [clojure.string :as str]
     [isaac.agent.config.resolve :as resolve]
     [isaac.agent.drive.dispatch :as dispatch]
@@ -97,16 +98,26 @@
     (fs/mkdirs fs* dir)
     (fs/spit fs* (str dir "/" (str/replace at ":" "-") ".edn") (pr-str diary))))
 
+(def DREAM_PROMPT (slurp (io/resource "isaac/dream/prompt.md")))
+
+(defn- answer-object [reply]
+  (let [reply (or reply "")]
+    (or (some (fn [index]
+                (try
+                  (json/parse-string (subs reply index) true)
+                  (catch Exception _ nil)))
+              (keep-indexed (fn [index c] (when (= c \{) index)) reply))
+        (throw (ex-info (str "No JSON object in dream reply: " (subs reply 0 (min 160 (count reply)))) {})))))
+
 (defn- dream-batch! [fs* root cfg crew now provider model soul batch]
-  (let [prompt (str "Find lasting habits in these conversations. Respond with JSON propose and reinforce.\n"
-                    soul "\nCurrent habits: "
+  (let [prompt (str DREAM_PROMPT "\nCrew soul: \n" soul "\nCurrent habits: "
                     (str/join "; " (map (fn [{:keys [id lesson state]}]
                                           (str id " " (name (keyword state)) " " lesson))
                                         (habits/list-habits fs* root crew)))
                     "\n" (str/join "\n" (:lines batch)))
         result (dispatch/dispatch-chat provider {:model model :messages [{:role "user" :content prompt}]})]
     (when (:error result) (throw (ex-info (str (or (:status result) (:message result) (:error result))) {})))
-    (let [answer (json/parse-string (:content result) true)
+    (let [answer (answer-object (:content result))
           approval (:approval (settings cfg crew))
           dropped (atom [])
           proposals (reduce (fn [saved {:keys [id lesson supersedes] :as proposal}]

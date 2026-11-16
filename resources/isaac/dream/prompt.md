@@ -1,0 +1,6 @@
+Distill lasting lessons about how this crew should work with its people from the conversation window below. Look for durable preferences, ways of collaborating, and corrections worth remembering, not one-off facts, requests, or trivia. Use the crew's soul and current habits for context. Propose new lessons only when supported by the window; reinforce an existing active habit only when the window supports it. If a new lesson replaces an existing habit, list the old habit's id in supersedes. Do not invent evidence.
+
+Answer with a JSON object in exactly this shape (no markdown or prose):
+{"propose":[{"id":"short-slug","lesson":"A lasting lesson about working with this person.","evidence":["<session>#<n>"],"supersedes":["existing-habit-id"]}],"reinforce":[{"id":"active-habit-id","evidence":["<session>#<n>"]}]}
+
+For propose, id is a short unique slug, lesson is the habit to remember, evidence is an array of labels from the window, and supersedes is an array of existing habit ids (use [] if none). For reinforce, id must be an active habit id from Current habits, and evidence is an array of labels from the window. Cite the exact <session>#<n> labels printed at the start of the relevant window lines; never cite lines outside this window. Empty propose and reinforce lists are valid: {"propose":[],"reinforce":[]}. Answer with the JSON only.
