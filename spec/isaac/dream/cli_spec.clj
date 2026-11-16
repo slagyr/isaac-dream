@@ -67,6 +67,58 @@
     (let [id (:id (habits/propose! @fs* "/dream-test" "ketch" "Keep watch." ["deck"] :manual))]
       (should= 0 (sut/run (assoc @opts :_raw-args ["approve" id "--crew" "ketch"])))
       (should= :active (:state (first (habits/list-habits @fs* "/dream-test" "ketch"))))))
+  (it "rewords a proposed habit in place while keeping its evidence, why and history"
+    (habits/save! @fs* "/dream-test" "ketch"
+                  {:id "watch" :state :proposed :lesson "Keep watch." :why "Storm season."
+                   :evidence [{:session "deck" :entries ["e-1"]}]
+                   :history [{:at "2026-04-01T00:00:00Z" :event :proposed}]})
+    (should= 0 (sut/run (assoc @opts :_raw-args ["approve" "watch" "--crew" "ketch"
+                                                  "--lesson" "Watch the rigging."])))
+    (let [habits (habits/list-habits @fs* "/dream-test" "ketch")
+          habit (first habits)]
+      (should= 1 (count habits))
+      (should= "watch" (:id habit))
+      (should= :active (:state habit))
+      (should= "Watch the rigging." (:lesson habit))
+      (should= "Storm season." (:why habit))
+      (should= [{:session "deck" :entries ["e-1"]}] (:evidence habit))
+      (should= [:proposed :revised] (mapv :event (:history habit)))
+      (should= "Keep watch." (:previous (last (:history habit))))))
+
+  (it "rewords a pending revision but retains the revision's why"
+    (habits/save! @fs* "/dream-test" "ketch"
+                  {:id "watch" :state :active :lesson "Keep watch." :why "Old reason."
+                   :revision {:lesson "Watch the sails." :why "The rigging frayed."}
+                   :history [{:at "2026-04-01T00:00:00Z" :event :approved}]})
+    (should= 0 (sut/run (assoc @opts :_raw-args ["approve" "watch" "--crew" "ketch"
+                                                  "--lesson" "Watch the rigging."])))
+    (let [habit (habits/find-habit @fs* "/dream-test" "ketch" "watch")]
+      (should= "Watch the rigging." (:lesson habit))
+      (should= "The rigging frayed." (:why habit))
+      (should-be-nil (:revision habit))
+      (should= "Keep watch." (:previous (last (:history habit))))))
+
+  (it "rewords an active habit without a revision"
+    (habits/save! @fs* "/dream-test" "ketch" {:id "watch" :state :active :lesson "Keep watch."
+                                                   :history [{:event :approved :at "2026-04-01T00:00:00Z"}]})
+    (should= 0 (sut/run (assoc @opts :_raw-args ["approve" "watch" "--crew" "ketch"
+                                                  "--lesson" "Watch the rigging."])))
+    (let [habit (habits/find-habit @fs* "/dream-test" "ketch" "watch")]
+      (should= :active (:state habit))
+      (should= "Watch the rigging." (:lesson habit))
+      (should= [:approved :revised] (mapv :event (:history habit)))
+      (should= "Keep watch." (:previous (last (:history habit))))))
+
+  (it "refuses an oversized rewording without modifying the habit"
+    (let [original {:id "watch" :state :proposed :lesson "Keep watch." :history [{:event :proposed}]}
+          error (java.io.StringWriter.)]
+      (habits/save! @fs* "/dream-test" "ketch" original)
+      (should= 1 (binding [*err* error]
+                   (sut/run (assoc @opts :_raw-args ["approve" "watch" "--crew" "ketch"
+                                                         "--lesson" (apply str (repeat 301 "x"))]))))
+      (should-contain "300" (str error))
+      (should= [original] (habits/list-habits @fs* "/dream-test" "ketch"))))
+
   (it "refuses an unknown crew"
     (should= 1 (binding [*err* (java.io.StringWriter.)]
                    (sut/run (assoc @opts :_raw-args ["wipe" "--crew" "../other"])))))  (it "shows recent dreams in reverse chronological order"

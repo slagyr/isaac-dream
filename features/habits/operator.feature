@@ -132,7 +132,6 @@ Feature: Operator CLI for habits
       | ketch +rigging +proposed +Check the rigging at dawn\. +ketch-chat            |
     And the stdout does not contain "geode"
 
-  @wip
   Scenario: approving with --lesson rewords the habit in place
     Given the isaac EDN file "dream/hieronymus/moonflowers.edn" exists with:
       | path     | value                                                      |
@@ -154,7 +153,6 @@ Feature: Operator CLI for habits
     When isaac is run with "dream list --crew hieronymus"
     Then the stdout does not contain "moonflowers-"
 
-  @wip
   Scenario: approving a pending revision with --lesson keeps the revision's why
     Given the isaac EDN file "dream/hieronymus/moonflowers.edn" exists with:
       | path     | value                                                                                                                                         |
@@ -174,7 +172,6 @@ Feature: Operator CLI for habits
       | history[-1].event    | revised                                                                                    |
       | history[-1].previous | Water the moonflowers first. Two of them died in April after the ferns were watered first. |
 
-  @wip
   Scenario: a --lesson over 300 characters is refused and the habit is unchanged
     Given the isaac EDN file "dream/hieronymus/moonflowers.edn" exists with:
       | path     | value                                                      |

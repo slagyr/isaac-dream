@@ -98,6 +98,21 @@
                             (update :history (fnil conj [])
                                     (assoc (event at :revised :operator) :previous (:lesson habit)))))))
 
+(defn reword! [fs* root crew id lesson]
+  (let [habit (or (find-habit fs* root crew id)
+                  (throw (ex-info "Habit not found" {:id id})))
+        at (str (java.time.Instant/now))]
+    (when-not (and (string? lesson) (not (str/blank? lesson)))
+      (throw (ex-info "lesson is required" {})))
+    (when (> (count lesson) 300)
+      (throw (ex-info "lesson exceeds 300 characters" {})))
+    (save! fs* root crew (-> habit
+                            (cond-> (:revision habit) (assoc :why (get-in habit [:revision :why])))
+                            (dissoc :revision)
+                            (assoc :state :active :lesson lesson)
+                            (update :history (fnil conj [])
+                                    (assoc (event at :revised :operator) :previous (:lesson habit)))))))
+
 (defn reject-revision! [fs* root crew id]
   (let [habit (pending-revision! fs* root crew id)
         at (str (java.time.Instant/now))]

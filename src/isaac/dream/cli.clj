@@ -112,12 +112,7 @@
                     "unpin" (do (habits/pin! fs* root-dir crew (first arguments) false) 0)
                     ("approve" "reject" "retire")
                     (do (if (and (= sub "approve") (:lesson options))
-                          (let [old (or (habits/find-habit fs* root-dir crew (first arguments))
-                                        (throw (ex-info "Habit not found" {})))
-                                id (str (:id old) "-" (subs (str (java.util.UUID/randomUUID)) 0 8))]
-                            (habits/propose! fs* root-dir crew (:lesson options) (:evidence old) :auto
-                                             {:id id :dream (:dream old) :supersedes [(:id old)]})
-                            (habits/change-state! fs* root-dir crew id :active))
+                          (habits/reword! fs* root-dir crew (first arguments) (:lesson options))
                           (let [id (first arguments)
                                 habit (habits/find-habit fs* root-dir crew id)]
                             (cond
