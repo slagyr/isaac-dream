@@ -65,7 +65,13 @@ Feature: Condensing habits into short rules as approvable revisions
       | content | contains "moonflowers" and "because they wilt by noon" and "dream approve moonflowers --crew hieronymus" |
 
   Scenario: approving a revision applies it and keeps the habit's id, history and strength
-    Given the isaac EDN file "dream/hieronymus/moonflowers.edn" exists with:
+    Given the isaac EDN file "config/crew/hieronymus.edn" exists with:
+      | path                          | value                                    | #comment                                 |
+      | model                         | grover                                   |                                          |
+      | soul                          | You are Hieronymus, the ship's botanist. |                                          |
+      | dream.enabled                 | true                                     |                                          |
+      | dream.strength.half-life-days | 100000                                   | no decay, so the strength reads exactly |
+    And the isaac EDN file "dream/hieronymus/moonflowers.edn" exists with:
       | path     | value                                                                                                                                                                                                                                                                                                                   |
       | state    | active                                                                                                                                                                                                                                                                                                                  |
       | lesson   | Water the moonflowers first. Two of them died in April after the ferns were watered first.                                                                                                                                                                                                                              |
