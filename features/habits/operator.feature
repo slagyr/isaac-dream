@@ -132,26 +132,64 @@ Feature: Operator CLI for habits
       | ketch +rigging +proposed +Check the rigging at dawn\. +ketch-chat            |
     And the stdout does not contain "geode"
 
-  Scenario: approving with --lesson stores a reworded habit that supersedes the proposal
+  @wip
+  Scenario: approving with --lesson rewords the habit in place
     Given the isaac EDN file "dream/hieronymus/moonflowers.edn" exists with:
-      | path     | value                                      |
-      | state    | proposed                                   |
-      | lesson   | Water the moonflowers first.               |
-      | evidence | [{:session "greenhouse" :entries ["e-1"]}] |
-    When isaac is run with "dream approve moonflowers --crew hieronymus --lesson \"Water the moonflowers before anything else.\""
+      | path     | value                                                      |
+      | state    | proposed                                                   |
+      | lesson   | Water the moonflowers first.                               |
+      | evidence | [{:session "greenhouse" :entries ["e-1"]}]                 |
+      | history  | [{:at "2026-04-15T03:00:00Z" :event :proposed :by :crew}]  |
+    When isaac is run with "dream approve moonflowers --crew hieronymus --lesson \"Water the moonflowers before anything else, because they wilt by noon.\""
     Then the exit code is 0
     And crew "hieronymus" has a habit matching:
-      | path                | value                                       |
-      | state               | active                                      |
-      | lesson              | Water the moonflowers before anything else. |
-      | supersedes[0]       | moonflowers                                 |
-      | evidence[0].session | greenhouse                                  |
-      | history[-1].by      | operator                                    |
+      | path                 | value                                                                  | #comment              |
+      | id                   | moonflowers                                                            | same habit, same id   |
+      | state                | active                                                                 |                       |
+      | lesson               | Water the moonflowers before anything else, because they wilt by noon. |                       |
+      | evidence[0].session  | greenhouse                                                             |                       |
+      | history[0].event     | proposed                                                               | history kept          |
+      | history[-1].event    | revised                                                                |                       |
+      | history[-1].previous | Water the moonflowers first.                                           |                       |
+    When isaac is run with "dream list --crew hieronymus"
+    Then the stdout does not contain "moonflowers-"
+
+  @wip
+  Scenario: approving a pending revision with --lesson keeps the revision's why
+    Given the isaac EDN file "dream/hieronymus/moonflowers.edn" exists with:
+      | path     | value                                                                                                                                         |
+      | state    | active                                                                                                                                        |
+      | lesson   | Water the moonflowers first. Two of them died in April after the ferns were watered first.                                                    |
+      | revision | {:lesson "Water the moonflowers first, because they wilt." :why "Two moonflowers died in April after the ferns were watered first."}          |
+      | evidence | [{:session "greenhouse" :entries ["e-1"]}]                                                                                                    |
+      | history  | [{:at "2026-04-01T00:00:00Z" :event :approved :by :operator} {:at "2026-04-03T00:00:00Z" :event :revision-proposed :by :condense}]             |
+    When isaac is run with "dream approve moonflowers --crew hieronymus --lesson \"Water the moonflowers before anything else, because they wilt by noon.\""
+    Then the exit code is 0
     And crew "hieronymus" has a habit matching:
-      | path          | value             |
-      | id            | moonflowers       |
-      | state         | retired           |
-      | superseded-by | #"moonflowers-.+" |
+      | path                 | value                                                                                      |
+      | id                   | moonflowers                                                                                |
+      | lesson               | Water the moonflowers before anything else, because they wilt by noon.                     |
+      | why                  | Two moonflowers died in April after the ferns were watered first.                          |
+      | revision             |                                                                                            |
+      | history[-1].event    | revised                                                                                    |
+      | history[-1].previous | Water the moonflowers first. Two of them died in April after the ferns were watered first. |
+
+  @wip
+  Scenario: a --lesson over 300 characters is refused and the habit is unchanged
+    Given the isaac EDN file "dream/hieronymus/moonflowers.edn" exists with:
+      | path     | value                                                      |
+      | state    | proposed                                                   |
+      | lesson   | Water the moonflowers first.                               |
+      | evidence | [{:session "greenhouse" :entries ["e-1"]}]                 |
+      | history  | [{:at "2026-04-15T03:00:00Z" :event :proposed :by :crew}]  |
+    When isaac is run with "dream approve moonflowers --crew hieronymus --lesson \"Water the moonflowers first. Two of them died in April after the ferns were watered first, and before that the gardener had been warned twice in March, once on a Tuesday and once on the Friday after the frost, that moonflowers wilt by noon when they wait in the sun while the ferns, the mint and the zinnias are watered first.\""
+    Then the exit code is 1
+    And the stderr contains "300"
+    And crew "hieronymus" has a habit matching:
+      | path              | value                        |
+      | state             | proposed                     |
+      | lesson            | Water the moonflowers first. |
+      | history[-1].event | proposed                     |
 
   Scenario: an unknown crew is an error, not an empty list
     When isaac is run with "dream list --crew ghost"
