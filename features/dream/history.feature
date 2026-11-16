@@ -161,3 +161,21 @@ Feature: Dreaming over history
     Then the exit code is 1
     And the stderr contains "invalid --since: yesterday"
     And grover records zero provider requests
+
+  @wip
+  Scenario: an --until after now ends the watermark at now (isaac-g2zv)
+    Given session "greenhouse" has transcript:
+      | timestamp            | message.role | message.content                     |
+      | 2026-04-21T14:00:00Z | user         | Always water the moonflowers first. |
+    And the following model responses are queued:
+      | type | content        | model |
+      | text | {"propose":[]} | echo  |
+    And the clock is fixed at "2026-04-22T03:00:00Z"
+    When isaac is run with "dream run --crew hieronymus --since 2026-04-15 --until 2026-04-30"
+    Then the exit code is 0
+    And the isaac file "dream/hieronymus/state.edn" EDN contains:
+      | path      | value                | #comment                                    |
+      | watermark | 2026-04-22T03:00:00Z | messages after now have not been read yet   |
+    And the newest file in "dream/hieronymus/diary" EDN contains:
+      | path         | value                |
+      | window.until | 2026-04-22T03:00:00Z |
