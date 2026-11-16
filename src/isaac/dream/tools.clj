@@ -52,13 +52,16 @@
               id (get args "id")]
           {:result (if id
                      (if-let [habit (habits/find-habit fs* root crew id)]
-                       (background/render habit crew ss strength-config)
+                       (background/render habit crew ss strength-config
+                                          (habits/ranking-days fs* root crew [habit]))
                        "not found")
                      (str/join "\n"
-                       (for [habit (sort-by :id (habits/list-habits fs* root crew))]
+                       (let [all (habits/list-habits fs* root crew)
+                           days (habits/ranking-days fs* root crew all)]
+                       (for [habit (sort-by :id all)]
                          (str (:id habit) " " (name (keyword (:state habit)))
-                              " Strength: " (format "%.1f" (habits/strength habit (habits/active-days ss crew) strength-config))
-                              " " (if (:pinned habit) "pinned" "unpinned") " " (:lesson habit)))))})))
+                              " Strength: " (format "%.1f" (habits/strength habit days strength-config))
+                              " " (if (:pinned habit) "pinned" "unpinned") " " (:lesson habit))))))})))
     (catch Exception _ {:result "not found"})))
 
 (defn habit-tool-factory [_]

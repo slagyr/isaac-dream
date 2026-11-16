@@ -115,6 +115,31 @@
     (should= "These are lessons this crew learned\nA lesson."
              (:text (sut/section {:fs @fs* :root @root :crew "ketch" :config {:crew {"ketch" {:dream {:prompt-chars 12}}}}}))))
 
+  (it "section never reads transcripts and ranks by persisted active days"
+    (let [today (str (java.time.LocalDate/now java.time.ZoneOffset/UTC))]
+      (doseq [[id lesson day] [["old" "Old lesson." "2026-04-01"] ["new" "New lesson." "2026-04-10"]]]
+        (sut/save! @fs* @root "ketch" {:id id :state :active :lesson lesson
+                                       :history [{:at (str day "T00:00:00Z") :event :approved}]}))
+      (sut/save-active-days! @fs* @root "ketch" #{"2026-04-01" "2026-04-10"})
+      (should= {:days ["2026-04-01" "2026-04-10"]} (read-string (fs/slurp @fs* "/dream-test/dream/ketch/active-days.edn")))
+      (should= 2 (count (sut/list-habits @fs* @root "ketch")))
+      (with-redefs [store/chronicle-transcript (fn [& _] (throw (ex-info "transcript read" {})))
+                    store/list-sessions (fn [& _] (throw (ex-info "list sessions" {})))]
+        (should= "These are lessons this crew learned\nNew lesson.\nOld lesson."
+                 (:text (sut/section {:fs @fs* :root @root :crew "ketch"}))))
+      (should (contains? (sut/ranking-days @fs* @root "ketch" []) today))))
+
+  (it "falls back to calendar days when no active-days file exists, reading no transcripts"
+    (sut/save! @fs* @root "ketch" {:id "a" :state :active :lesson "A."
+                                   :history [{:at "2026-04-01T00:00:00Z" :event :approved}]})
+    (let [days (sut/ranking-days @fs* @root "ketch" (sut/list-habits @fs* @root "ketch"))]
+      (should (contains? days "2026-04-01"))
+      (should (contains? days "2026-04-02")))
+    (with-redefs [store/chronicle-transcript (fn [& _] (throw (ex-info "transcript read" {})))
+                  store/list-sessions (fn [& _] (throw (ex-info "list sessions" {})))]
+      (should= "These are lessons this crew learned\nA."
+               (:text (sut/section {:fs @fs* :root @root :crew "ketch"})))))
+
   (it "counts all crews' sessions once per UTC day, regardless of turn origin"
     (with-out-str (nexus/-with-nexus {:fs @fs*}
       (binding [memory/*now* (java.time.Instant/parse "2026-04-02T00:00:00Z")]

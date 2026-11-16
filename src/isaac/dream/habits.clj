@@ -3,8 +3,7 @@
     [clojure.edn :as edn]
     [clojure.string :as str]
     [isaac.foundation.fs :as fs]
-    [isaac.agent.session.store.spi :as store]
-    [isaac.agent.session.store.sidecar :as sidecar-store]))
+    [isaac.agent.session.store.spi :as store]))
 
 (defn- valid-id? [id]
   (boolean (and (string? id) (re-matches #"[a-zA-Z0-9_-]+" id))))
@@ -23,7 +22,7 @@
   (let [dir (crew-dir root crew)]
     (->> (fs/children fs* dir)
          (filter #(re-matches #"[a-zA-Z0-9_-]+\.edn" %))
-         (remove #{"state.edn"})
+         (remove #{"state.edn" "active-days.edn"})
          (mapv (fn [filename]
                  (let [id (subs filename 0 (- (count filename) 4))]
                    (assoc (edn/read-string (fs/slurp fs* (habit-path root crew id)))
@@ -188,6 +187,41 @@
          set)
     #{}))
 
+;; Active days persisted by the dream run so turns never read transcripts.
+(defn- active-days-path [root crew]
+  (str (crew-dir root crew) "/active-days.edn"))
+
+(defn save-active-days! [fs* root crew days]
+  (fs/mkdirs fs* (crew-dir root crew))
+  (fs/spit fs* (active-days-path root crew) (pr-str {:days (vec (sort days))}))
+  days)
+
+(defn- stored-active-days [fs* root crew]
+  (let [path (active-days-path root crew)]
+    (when (fs/exists? fs* path)
+      (try (let [days (edn/read-string (fs/slurp fs* path))]
+             (when (map? days) (set (filter string? (:days days)))))
+           (catch Exception _ nil)))))
+
+(defn- calendar-days [from today]
+  (loop [d (java.time.LocalDate/parse from) acc #{}]
+    (if (.isAfter d (java.time.LocalDate/parse today))
+      acc
+      (recur (.plusDays d 1) (conj acc (str d))))))
+
+(defn ranking-days
+  "Cheap active-day set for ranking: reads one small file, never transcripts.
+   Falls back to calendar days since the earliest habit event when the dream run
+   has not persisted any yet. Always includes today (UTC)."
+  [fs* root crew habits]
+  (let [today (str (java.time.LocalDate/now java.time.ZoneOffset/UTC))]
+    (if-let [days (stored-active-days fs* root crew)]
+      (conj days today)
+      (let [first-day (->> habits (mapcat :history) (keep (comp utc-day :at)) sort first)]
+        (if (and first-day (not (pos? (compare first-day today))))
+          (calendar-days first-day today)
+          #{today})))))
+
 (defn- event-kind [{:keys [event kind]}]
   (if (= event :reinforced) [event (or kind :taught)] [event]))
 
@@ -212,11 +246,11 @@
   (doseq [{:keys [id]} (list-habits fs* root crew)]
     (fs/delete fs* (habit-path root crew id))))
 
-(defn section [{:keys [fs root crew config session-store]}]
+(defn section [{:keys [fs root crew config]}]
   (let [{:keys [prompt-chars] :as settings} (dream-settings config crew)
-        ss (or session-store (store/registered-store) (sidecar-store/create-store root fs))
-        days (active-days ss crew)
-        habits (->> (list-habits fs root crew)
+        all (list-habits fs root crew)
+        days (ranking-days fs root crew all)
+        habits (->> all
                     (filter #(= :active (keyword (:state %))))
                     (sort-by (fn [habit] [(if (:pinned habit) 0 1)
                                           (- (strength habit days (:strength settings))) (:id habit)])))

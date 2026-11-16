@@ -239,7 +239,7 @@
                                            (update :proposals into proposals))))
                 (write-state! fs* root crew (assoc previous :lock {:at now}
                                                   :watermark (later (:watermark previous) (:until batch))))))
-            (let [days (habits/active-days ss crew)
+            (let [days (habits/save-active-days! fs* root crew (habits/active-days ss crew))
                   floor (get-in (settings cfg crew) [:strength :floor] 0.5)
                   strength-config (:strength (settings cfg crew))
                   retired (atom [])

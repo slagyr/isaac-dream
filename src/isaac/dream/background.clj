@@ -17,8 +17,10 @@
              (if (string? content) content (str/join "" (map :text content)))))
       (str session " missing evidence " id))))
 
-(defn render [habit crew ss strength-config]
-  (let [days (habits/active-days ss crew)]
+(defn render
+  ([habit crew ss strength-config]
+   (render habit crew ss strength-config (habits/active-days ss crew)))
+  ([habit crew ss strength-config days]
     (str/join "\n"
               (concat [(str "Rule: " (:lesson habit))
                        (str "Why: " (or (:why habit) ""))

@@ -10,8 +10,9 @@ Feature: Habit strength orders the habits section
   that day holds. An event's weight halves for every
   dream.strength.half-life-days (default 30) active days after the day it
   happened. An active day is a UTC day on which any of the crew's sessions
-  has a transcript entry, whoever started the turn. Days without activity
-  never decay a habit.
+  has a transcript entry, whoever started the turn. The dream run records
+  them in dream/<crew>/active-days.edn; turns read only that file, never
+  transcripts. Days without activity never decay a habit.
 
   The habits section lists active habits strongest first, pinned habits
   ahead of all of them, and stops before the lesson that would take the
@@ -71,12 +72,9 @@ Feature: Habit strength orders the habits section
       | lesson   | Deadhead the zinnias on Fridays.                                                                                                                                              |
       | evidence | [{:session "greenhouse" :entries ["e-2"]}]                                                                                                                                    |
       | history  | [{:at "2026-04-01T00:00:00Z" :event :approved :by :operator} {:at "2026-04-12T03:00:00Z" :event :reinforced :by {:dream "2026-04-12T03:00:00Z"} :evidence [{:session "greenhouse" :entries ["e-2"]}]}] |
-    And session "greenhouse" has transcript:
-      | timestamp            | message.role | message.content          |
-      | 2026-04-05T14:00:00Z | user         | The ferns look thirsty.  |
-      | 2026-04-06T14:00:00Z | user         | Orpheus dug up the mint. |
-      | 2026-04-07T14:00:00Z | user         | Seed order arrived.      |
-      | 2026-04-08T14:00:00Z | user         | Frost tonight, maybe.    |
+    And the isaac EDN file "dream/hieronymus/active-days.edn" exists with:
+      | path | value                                                    |
+      | days | ["2026-04-05" "2026-04-06" "2026-04-07" "2026-04-08"] |
     Then the prompt "Status?" on session "greenhouse" matches:
       | key            | value                                                                  | #comment                                                   |
       | system[0].text | #"(?s).*Deadhead the zinnias on Fridays\..*Water the moonflowers first\..*" | moonflowers' 4 points sit behind four active days; zinnias' reinforcement is newer |
@@ -99,6 +97,9 @@ Feature: Habit strength orders the habits section
       | lesson   | Deadhead the zinnias on Fridays.                                                                                                                                              |
       | evidence | [{:session "greenhouse" :entries ["e-2"]}]                                                                                                                                    |
       | history  | [{:at "2026-04-01T00:00:00Z" :event :approved :by :operator} {:at "2026-04-12T03:00:00Z" :event :reinforced :by {:dream "2026-04-12T03:00:00Z"} :evidence [{:session "greenhouse" :entries ["e-2"]}]}] |
+    And the isaac EDN file "dream/hieronymus/active-days.edn" exists with:
+      | path | value |
+      | days | []    |
     Then the prompt "Status?" on session "greenhouse" matches:
       | key            | value                                                                  | #comment                                  |
       | system[0].text | #"(?s).*Water the moonflowers first\..*Deadhead the zinnias on Fridays\..*" | no active days between: moonflowers 4, zinnias 3 |

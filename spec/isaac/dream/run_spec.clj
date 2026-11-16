@@ -25,7 +25,7 @@
         (sut/run! {:fs fs* :root "/dream-test" :cfg {:crew {"hieronymus" {}}}
                    :crew "hieronymus" :session-store :fake :now "2026-04-22T03:00:00Z"})
         (catch Exception _ nil))
-      {:request @request
+      {:request @request :fs fs*
        :habits (habits/list-habits fs* "/dream-test" "hieronymus")
        :diary (edn/read-string (fs/slurp fs* "/dream-test/dream/hieronymus/diary/2026-04-22T03-00-00Z.edn"))}))))
 
@@ -34,6 +34,10 @@
                    [{:session "greenhouse" :entries ["old"]}] :auto {:id "moonflowers"}))
 
 (describe "Dream model replies"
+  (it "persists the crew's active days for the turn path"
+    (let [{:keys [fs]} (dream-with-reply "{\"propose\":[],\"reinforce\":[]}")]
+      (should= {:days ["2026-04-21"]} (edn/read-string (fs/slurp fs "/dream-test/dream/hieronymus/active-days.edn")))))
+
   (it "turns a proposal using a proposed habit's id into reinforcement rather than a new proposal"
     (let [seed! (fn [fs*] (habits/propose! fs* "/dream-test" "hieronymus" "Water the moonflowers first."
                                            [{:session "greenhouse" :entries ["old"]}] :manual
