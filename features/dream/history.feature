@@ -162,7 +162,6 @@ Feature: Dreaming over history
     And the stderr contains "invalid --since: yesterday"
     And grover records zero provider requests
 
-  @wip
   Scenario: an --until after now ends the watermark at now (isaac-g2zv)
     Given session "greenhouse" has transcript:
       | timestamp            | message.role | message.content                     |

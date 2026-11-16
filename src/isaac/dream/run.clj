@@ -147,7 +147,7 @@
         previous (read-state fs* root crew)
         lock (get-in previous [:lock :at])
         since (or since (:watermark previous))
-        until (or until now)
+        until (if (and until (.isBefore (java.time.Instant/parse until) (java.time.Instant/parse now))) until now)
         progress (atom {:at now :window {:since since :until until} :batches 0
                         :sessions [] :proposed [] :reinforced [] :dropped [] :proposals []})]
     (when (and lock (< (- (.toEpochMilli (java.time.Instant/parse now))
