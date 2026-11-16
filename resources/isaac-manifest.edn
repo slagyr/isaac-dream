@@ -1,5 +1,5 @@
 {:id          :isaac.dream
- :version     "0.3.2"
+ :version     "0.4.0"
  :builtin?    true
  :factory     isaac.dream.module/create-module
  :description "Dreaming for Isaac — a crew distills conversations into private habits."
