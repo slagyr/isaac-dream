@@ -122,6 +122,34 @@ Feature: Dreaming over history
       | path      | value                |
       | watermark | 2026-04-22T03:00:00Z |
 
+  @wip
+  Scenario: a batch also ends at dream.batch-chars characters
+    Given the isaac EDN file "config/crew/hieronymus.edn" exists with:
+      | path              | value | #comment                         |
+      | dream.batch-chars | 160   | each window line is ~75 chars    |
+    And session "greenhouse" has transcript:
+      | timestamp            | message.role | message.content                     |
+      | 2026-04-21T14:00:00Z | user         | Orpheus is sulking under the porch. |
+      | 2026-04-21T14:01:00Z | user         | Always water the moonflowers first. |
+      | 2026-04-21T14:02:00Z | user         | Moonflowers before the ferns.       |
+    And the following model responses are queued:
+      | type | content        | model |
+      | text | {"propose":[]} | echo  |
+      | text | {"propose":[]} | echo  |
+    And the clock is fixed at "2026-04-22T03:00:00Z"
+    When isaac is run with "dream run --crew hieronymus"
+    Then the exit code is 0
+    And LLM request 1 matches:
+      | key                  | value                                                        |
+      | messages[-1].content | #"(?s)^(?!.*before the ferns).*Orpheus.*moonflowers first.*" |
+    And LLM request 2 matches:
+      | key                  | value                                    |
+      | messages[-1].content | #"(?s)^(?!.*Orpheus).*before the ferns.*" |
+    And the newest file in "dream/hieronymus/diary" EDN contains:
+      | path    | value     |
+      | status  | succeeded |
+      | batches | 2         |
+
   Scenario: a failed batch keeps what earlier batches found and the watermark where they stopped
     Given the isaac EDN file "config/crew/hieronymus.edn" exists with:
       | path        | value |

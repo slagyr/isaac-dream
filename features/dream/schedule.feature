@@ -75,3 +75,53 @@ Feature: Dream schedule
       | id          | trigger.kind | trigger.expr | trigger.zone    |
       | dream/ketch | cron         | 0 * * * *    | America/Chicago |
     And the scheduled tasks do not include "dream/hieronymus"
+
+  @wip
+  Scenario: a scheduled dream sends its digest
+    Given the isaac EDN file "config/isaac.edn" exists with:
+      | path                    | value       |
+      | attention.notify.comm   | discord     |
+      | attention.notify.target | boiler-room |
+    And the following sessions exist:
+      | name       | crew       |
+      | greenhouse | hieronymus |
+    And session "greenhouse" has transcript:
+      | timestamp            | message.role | message.content                     |
+      | 2026-04-21T14:00:00Z | user         | Always water the moonflowers first. |
+    And the following model responses are queued:
+      | type | content                                                                                                | model |
+      | text | {"propose":[{"id":"moonflowers","lesson":"Water the moonflowers first.","evidence":["greenhouse#1"]}]} | echo  |
+    And the scheduler is started with the clock at "2026-04-22T07:59:00Z"
+    When the dream service is started
+    And the clock advances "1m" and pending handlers complete
+    Then the directory "comm/delivery/pending" has exactly 1 file
+    And the newest file in "comm/delivery/pending" EDN contains:
+      | path    | value                                                                                                      |
+      | comm    | :discord                                                                                                   |
+      | target  | boiler-room                                                                                                |
+      | content | contains "hieronymus" and "Water the moonflowers first." and "dream approve moonflowers --crew hieronymus" |
+
+  @wip
+  Scenario: a scheduled dream dreams on the crew's own model
+    Given the isaac EDN file "config/models/nocturne.edn" exists with:
+      | path     | value      |
+      | model    | nocturne-7 |
+      | provider | grover     |
+    And the isaac EDN file "config/crew/hieronymus.edn" exists with:
+      | path  | value    | #comment                            |
+      | model | nocturne | defaults.crew.model is still grover |
+    And the following sessions exist:
+      | name       | crew       |
+      | greenhouse | hieronymus |
+    And session "greenhouse" has transcript:
+      | timestamp            | message.role | message.content                     |
+      | 2026-04-21T14:00:00Z | user         | Always water the moonflowers first. |
+    And the following model responses are queued:
+      | type | content        | model |
+      | text | {"propose":[]} | echo  |
+    And the scheduler is started with the clock at "2026-04-22T07:59:00Z"
+    When the dream service is started
+    And the clock advances "1m" and pending handlers complete
+    Then the last LLM request matches:
+      | key   | value      |
+      | model | nocturne-7 |
