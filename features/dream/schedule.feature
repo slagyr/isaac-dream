@@ -76,7 +76,6 @@ Feature: Dream schedule
       | dream/ketch | cron         | 0 * * * *    | America/Chicago |
     And the scheduled tasks do not include "dream/hieronymus"
 
-  @wip
   Scenario: a scheduled dream sends its digest
     Given the isaac EDN file "config/isaac.edn" exists with:
       | path                    | value       |

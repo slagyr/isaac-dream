@@ -11,18 +11,16 @@
     [isaac.agent.session.store.spi :as store]
     [isaac.agent.session.store.sidecar :as sidecar-store]
     [isaac.agent.tool.memory :as memory]
-    [isaac.foundation.logger :as log]
+    [isaac.dream.digest :as digest]
     [isaac.dream.habits :as habits]
     [isaac.foundation.config.loader :as loader]
     [isaac.foundation.fs :as fs]
+    [isaac.foundation.logger :as log]
     [isaac.foundation.nexus :as nexus]
     [isaac.foundation.scheduler.runtime :as scheduler]
     [isaac.foundation.reconfigurable :as reconfigurable]))
 
-(defn settings [cfg crew]
-  (let [defaults (get-in cfg [:defaults :crew :dream])
-        specific (:dream (or (get-in cfg [:crew crew]) (get-in cfg [:crew (keyword crew)])))]
-    (merge {:enabled false :approval :manual :batch 400} defaults specific)))
+(def settings digest/settings)
 
 (defn check-schedules [{:keys [config]}]
   {:errors (vec (for [[crew _] (:crew config)
@@ -287,7 +285,8 @@
                       (scheduler/schedule! shared
                                            {:id id :trigger {:kind :cron :expr schedule :zone zone}
                                             :handler (fn [{:keys [now]}]
-                                                       (run! {:cfg cfg :crew crew :now (str now) :root root :fs fs*}))})
+                                                       (run! {:cfg cfg :crew crew :now (str now) :root root :fs fs*
+                                                              :notify! (partial digest/send! cfg fs* root)}))})
                       id))
                   (scheduled-crews cfg))]
     {:scheduler shared :ids ids}))
