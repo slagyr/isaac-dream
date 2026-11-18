@@ -122,7 +122,6 @@ Feature: Dreaming over history
       | path      | value                |
       | watermark | 2026-04-22T03:00:00Z |
 
-  @wip
   Scenario: a batch also ends at dream.batch-chars characters
     Given the isaac EDN file "config/crew/hieronymus.edn" exists with:
       | path              | value | #comment                         |

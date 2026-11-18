@@ -9,7 +9,7 @@
 (defn settings [cfg crew]
   (let [defaults (get-in cfg [:defaults :crew :dream])
         specific (:dream (or (get-in cfg [:crew crew]) (get-in cfg [:crew (keyword crew)])))]
-    (merge {:enabled false :approval :manual :batch 400} defaults specific)))
+    (merge {:enabled false :approval :manual :batch 400 :batch-chars 200000} defaults specific)))
 
 (defn send! [cfg fs* root-dir crew proposals error & [contradicted retired retire-proposed]]
   (let [cfg (or cfg (loader/load-config! (loader/root) (fs/instance) "dream digest"))

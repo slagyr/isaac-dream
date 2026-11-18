@@ -22,7 +22,9 @@ then enable individual crews in `config/crew/<id>.edn`:
 The five-field cron schedule uses the configured `:tz`; an enabled crew
 without a resolved schedule fails config validation. Override `:schedule`
 per crew (e.g. `"0 * * * *"`), `:model` to choose a different analysis model,
-`:approval` to `:auto`, `:batch` to a positive message count (default 400), and `:digest` to `{:comm "discord" :to "operator"}`.
+`:approval` to `:auto`, `:batch` to a positive message count (default 400),
+`:batch-chars` to a positive window-line character cap (default 200000; an oversized
+line goes alone), and `:digest` to `{:comm "discord" :to "operator"}`.
 Otherwise the crew's model and `:attention :notify` destination are used.
 The shared scheduler reconciles tasks when config reloads. `dream__propose`
 and the active-habits prompt section work regardless of `:dream :enabled`.

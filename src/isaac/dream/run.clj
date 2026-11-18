@@ -60,18 +60,30 @@
      :labels (into {} (map (juxt :label identity) labelled))
      :sessions (vec (distinct (map :session labelled)))}))
 
-(defn batches [window size]
+(defn- window-line [entry]
+  (str (:label entry) " " (:timestamp entry) " " (:role entry) ": " (:text entry)))
+
+(defn batches [window size max-chars]
   (when-not (pos? size) (throw (ex-info "dream.batch must be positive" {:batch size})))
+  (when-not (pos? max-chars) (throw (ex-info "dream.batch-chars must be positive" {:batch-chars max-chars})))
   (loop [remaining (:entries window) result []]
     (if (empty? remaining)
       result
       (let [initial (take size remaining)
             end (:timestamp (last initial))
-            entries (vec (concat initial (take-while #(= end (:timestamp %)) (drop size remaining))))]
+            by-count (concat initial (take-while #(= end (:timestamp %)) (drop size remaining)))
+            entries (loop [selected [] chars 0 candidates (seq by-count)]
+                      (if-let [entry (first candidates)]
+                        (let [length (count (window-line entry))]
+                          (if (and (seq selected) (> (+ chars length) max-chars))
+                            selected
+                            (recur (conj selected entry) (+ chars length) (next candidates))))
+                        selected))
+            entries (vec entries)]
         (recur (drop (count entries) remaining)
                (conj result {:entries entries
-                             :until end
-                             :lines (mapv #(str (:label %) " " (:timestamp %) " " (:role %) ": " (:text %)) entries)
+                             :until (:timestamp (last entries))
+                             :lines (mapv window-line entries)
                              :labels (into {} (map (juxt :label identity) entries))
                              :sessions (vec (distinct (map :session entries)))}))))))
 
@@ -225,7 +237,7 @@
                            (llm-provider/make-provider (api/display-name provider)
                                                        (assoc (api/config provider) :root root))
                            provider)]
-            (doseq [batch (batches messages (:batch (settings cfg crew)))]
+            (doseq [batch (batches messages (:batch (settings cfg crew)) (:batch-chars (settings cfg crew)))]
               (let [{:keys [proposals reinforced contradicted dropped]} (dream-batch! fs* root cfg crew now provider model soul batch)]
                 (swap! progress (fn [p] (-> p
                                            (update :batches inc)
@@ -285,8 +297,8 @@
                       (scheduler/schedule! shared
                                            {:id id :trigger {:kind :cron :expr schedule :zone zone}
                                             :handler (fn [{:keys [now]}]
-                                                       (run! {:cfg cfg :crew crew :now (str now) :root root :fs fs*
-                                                              :notify! (partial digest/send! cfg fs* root)}))})
+                                                       (run! {:crew crew :now (str now) :root root :fs fs*
+                                                              :notify! (partial digest/send! nil fs* root)}))})
                       id))
                   (scheduled-crews cfg))]
     {:scheduler shared :ids ids}))
@@ -299,13 +311,13 @@
   (on-load [_ dream]
     (when (:enabled dream)
       (let [cfg (or (loader/snapshot "dream service start") {})]
-        (reset! tasks (schedule! (assoc cfg :crew {crew {:dream dream}}))))))
+        (reset! tasks (schedule! (assoc cfg :crew {crew (assoc (or (get-in cfg [:crew crew]) (get-in cfg [:crew (keyword crew)])) :dream dream)}))))))
   (on-config-change! [_ _old dream]
     (when-let [old @tasks] (unschedule! old))
     (reset! tasks nil)
     (when (:enabled dream)
       (let [cfg (or (loader/snapshot "dream service reload") {})]
-        (reset! tasks (schedule! (assoc cfg :crew {crew {:dream dream}}))))))
+        (reset! tasks (schedule! (assoc cfg :crew {crew (assoc (or (get-in cfg [:crew crew]) (get-in cfg [:crew (keyword crew)])) :dream dream)}))))))
   (on-unload [_ _]
     (when-let [old @tasks] (unschedule! old))
     (reset! tasks nil)))

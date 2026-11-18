@@ -129,7 +129,7 @@
 
 (describe "Dream config"
   (it "keeps dreaming off until enabled and inherits the crew default schedule"
-    (should= {:enabled false :approval :manual :batch 400 :schedule "0 3 * * *"}
+    (should= {:enabled false :approval :manual :batch 400 :batch-chars 200000 :schedule "0 3 * * *"}
              (sut/settings {:defaults {:crew {:dream {:schedule "0 3 * * *"}}}
                             :crew {"ketch" {:model "grover"}}} "ketch")))
   (it "overrides fleet auto approval for a manual crew"
@@ -159,10 +159,37 @@
                                                        :message {:role "user" :content (str n)}})
                                                  (range 4) ["2026-04-21T01:00:00Z" "2026-04-21T01:01:00Z"
                                                             "2026-04-21T01:01:00Z" "2026-04-21T01:02:00Z"])}]
-          batches (sut/batches (sut/window sessions nil "2026-04-22T00:00:00Z") 2)]
+          batches (sut/batches (sut/window sessions nil "2026-04-22T00:00:00Z") 2 200000)]
       (should= [3 1] (mapv #(count (:lines %)) batches))
       (should= ["deck#1" "deck#2" "deck#3" "deck#4"] (mapv :label (mapcat :entries batches)))
-      (should= "2026-04-21T01:01:00Z" (:until (first batches))))))
+      (should= "2026-04-21T01:01:00Z" (:until (first batches)))))
+  (it "sends a line longer than the character cap alone and preserves order"
+    (let [entries (mapv (fn [n text]
+                          {:id (str "e-" n) :type "message"
+                           :timestamp (format "2026-04-21T01:%02d:00Z" n)
+                           :message {:role "user" :content text}})
+                        (range 4) ["short" (apply str (repeat 100 "x")) "short" "last"])
+          window (sut/window [{:id "deck" :entries entries}] nil "2026-04-22T00:00:00Z")
+          batches (sut/batches window 400 90)]
+      (should= [1 1 2] (mapv #(count (:lines %)) batches))
+      (should= (:lines window) (vec (mapcat :lines batches)))
+      (should= (second (:lines window)) (first (:lines (second batches))))))
+  (it "splits same-timestamp lines without dropping any messages"
+    (let [entries (mapv (fn [n] {:id (str "e-" n) :type "message"
+                                 :timestamp "2026-04-21T01:00:00Z"
+                                 :message {:role "user" :content (str n)}}) (range 3))
+          window (sut/window [{:id "deck" :entries entries}] nil "2026-04-22T00:00:00Z")
+          batches (sut/batches window 2 40)]
+      (should= [1 1 1] (mapv #(count (:lines %)) batches))
+      (should= (:lines window) (vec (mapcat :lines batches)))))
+  (it "includes a line when the batch reaches exactly the character cap"
+    (let [entries (mapv (fn [n]
+                          {:id (str "e-" n) :type "message"
+                           :timestamp (format "2026-04-21T01:%02d:00Z" n)
+                           :message {:role "user" :content "x"}}) (range 3))
+          window (sut/window [{:id "deck" :entries entries}] nil "2026-04-22T00:00:00Z")
+          cap (+ (count (first (:lines window))) (count (second (:lines window))))]
+      (should= [2 1] (mapv #(count (:lines %)) (sut/batches window 400 cap))))))
 
 (describe "Dream watermark"
   (it "advances through batches without moving backward"

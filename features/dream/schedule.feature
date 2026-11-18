@@ -100,7 +100,6 @@ Feature: Dream schedule
       | target  | boiler-room                                                                                                |
       | content | contains "hieronymus" and "Water the moonflowers first." and "dream approve moonflowers --crew hieronymus" |
 
-  @wip
   Scenario: a scheduled dream dreams on the crew's own model
     Given the isaac EDN file "config/models/nocturne.edn" exists with:
       | path     | value      |

@@ -16,6 +16,7 @@
                                   {:enabled {:type :boolean}
                                    :schedule {:type :string}
                                    :batch {:type :int}
+                                   :batch-chars {:type :int}
                                    :prompt-chars {:type :int}
                                    :strength {:type :map :schema {:half-life-days {:type :int} :floor {:type :double}}}
                                    :approval {:type :keyword :validations [[:one-of? :manual :auto]]}
